@@ -36,15 +36,8 @@ jobs:
           node-version: 20
           cache: 'npm'
       
-      # Clean install approach to fix the Rollup issue
-      - name: Clean npm cache
-        run: npm cache clean --force
-      
-      - name: Remove existing node_modules and package-lock.json
-        run: rm -rf node_modules package-lock.json
-      
-      - name: Install dependencies with --no-optional
-        run: npm install --no-optional
+      - name: Install dependencies
+        run: npm install
       
       - name: Build
         run: npm run build
