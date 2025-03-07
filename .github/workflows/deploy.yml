@@ -2,9 +2,9 @@ name: Build and deploy site to GitHub Pages
 
 on:
   push:
-    branches: [ "initial-version" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "initial-version" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 permissions:
@@ -24,8 +24,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: initial-version
       
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -38,13 +36,6 @@ jobs:
       
       - name: Build
         run: npm run build
-      
-      - name: Debug build output
-        run: |
-          echo "Build output structure:"
-          ls -la dist/
-          echo "Index.html content:"
-          cat dist/index.html
 
       - name: Publish to gh-pages
         uses: JamesIves/github-pages-deploy-action@4.1.4
