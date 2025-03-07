@@ -8,25 +8,41 @@
 const DEVICE_PARAMS = {
 	helmi: {
 		name: 'Helmi',
-		intercept: 2.423064,
+		intercept: 2.361885,
 		terms: [
-			{type: 'interaction', variables: ['batches', 'kshots'], coefficient: 0.432691},
-			{type: 'single', variable: 'qubits', coefficient: 0.111159},
-			{type: 'single', variable: 'batches', coefficient: -0.039790},
-			{type: 'single', variable: 'kshots', coefficient: -0.018588},
-			{type: 'interaction', variables: ['batches', 'qubits'], coefficient: 0.015776},
-			{type: 'power', variable: 'qubits', coefficient: 0.005476, exponent: 2}
+			{type: 'interaction', variables: ['batches', 'kshots'], coefficient: 0.432804},
+			{type: 'single', variable: 'qubits', coefficient: 0.178790},
+			{type: 'single', variable: 'batches', coefficient: -0.027707},
+			{type: 'single', variable: 'kshots', coefficient: -0.025819},
+			{type: 'interaction', variables: ['qubits', 'batches'], coefficient: 0.009231},
+			{type: 'interaction', variables: ['qubits', 'kshots'], coefficient: 0.007381},
+			{type: 'power', variable: 'qubits', coefficient: -0.006612, exponent: 2},
+			{type: 'single', variable: 'depth', coefficient: 0.003655},
+			{type: 'interaction', variables: ['qubits', 'depth'], coefficient: -0.001835},
+			{type: 'power', variable: 'kshots', coefficient: 0.000113, exponent: 2},
+			{type: 'interaction', variables: ['depth', 'batches'], coefficient: -0.000107},
+			{type: 'power', variable: 'batches', coefficient: 0.000104, exponent: 2},
+			{type: 'interaction', variables: ['depth', 'kshots'], coefficient: 0.000014}
 		]
 	},
 	'vtt-q50': {
 		name: 'VTT Q50',
-		intercept: 3.591248,
+		intercept: 3.687455,
 		terms: [
-			{type: 'interaction', variables: ['batches', 'kshots'], coefficient: 0.411585},
-			{type: 'single', variable: 'kshots', coefficient: -0.024597},
-			{type: 'single', variable: 'batches', coefficient: -0.020134},
-			{type: 'single', variable: 'depth', coefficient: 0.013455},
-			{type: 'interaction', variables: ['batches', 'qubits'], coefficient: 0.005452}
+			{type: 'interaction', variables: ['batches', 'kshots'], coefficient: 0.411647},
+			{type: 'single', variable: 'batches', coefficient: -0.039480},
+			{type: 'single', variable: 'kshots', coefficient: -0.023972},
+			{type: 'single', variable: 'depth', coefficient: -0.015355},
+			{type: 'single', variable: 'qubits', coefficient: -0.012479},
+			{type: 'interaction', variables: ['qubits', 'batches'], coefficient: 0.006657},
+			{type: 'interaction', variables: ['depth', 'batches'], coefficient: -0.000807},
+			{type: 'power', variable: 'batches', coefficient: 0.000738, exponent: 2},
+			{type: 'interaction', variables: ['qubits', 'kshots'], coefficient: 0.000660},
+			{type: 'power', variable: 'kshots', coefficient: 0.000327, exponent: 2},
+			{type: 'interaction', variables: ['depth', 'kshots'], coefficient: 0.000319},
+			{type: 'power', variable: 'qubits', coefficient: 0.000241, exponent: 2},
+			{type: 'power', variable: 'depth', coefficient: 0.000157, exponent: 2},
+			{type: 'interaction', variables: ['qubits', 'depth'], coefficient: -0.000042}
 		]
 	}
 };
