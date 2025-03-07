@@ -3,31 +3,7 @@ import DeviceSelector from './DeviceSelector';
 import HistoryPanel from './HistoryPanel';
 import BasketPanel from './BasketPanel';
 import JobHistoryManager from '../utils/JobHistoryManager';
-
-// Device-specific model parameters
-const DEVICE_PARAMS = {
-	helmi: {
-		name: 'Helmi',
-		model: 'power',
-		constant: 1,
-		shots: { coefficient: 0.5, exponent: 0.8 },
-		qubits: { coefficient: 2, exponent: 1.5 },
-		batches: { coefficient: 0.3, exponent: 1.2 },
-		depth: { coefficient: 1, exponent: 0.9 }
-	},
-	'vtt-q50': {
-		name: 'VTT Q50',
-		model: 'linear',
-		constant: 3.591248,
-		terms: [
-			{ type: 'interaction', variables: ['batches', 'shots'], coefficient: 0.411585 },
-			{ type: 'single', variable: 'shots', coefficient: -0.024597 },
-			{ type: 'single', variable: 'batches', coefficient: -0.020134 },
-			{ type: 'single', variable: 'depth', coefficient: -0.013455 },
-			{ type: 'interaction', variables: ['batches', 'qubits'], coefficient: 0.005452 }
-		]
-	}
-};
+import { DEVICE_PARAMS, calculateQPUSeconds } from '../utils/ResourceEstimatorModel';
 
 const fontFamily = '-apple-system,BlinkMacSystemFont,"Roboto","Segoe UI","Helvetica Neue","Lucida Grande",Arial,sans-serif';
 
@@ -140,53 +116,14 @@ const ResourceEstimator = () => {
 			qubits: parseInt(formData.qubits, 10)
 		};
 		
-		const deviceParams = DEVICE_PARAMS[selectedDevice];
-		let result = 0;
-		
-		// Calculate QPU seconds based on the model type
-		if (deviceParams.model === 'power') {
-			// Power-law model (original Helmi model)
-			result = deviceParams.constant + 
-				deviceParams.shots.coefficient * Math.pow(numericFormData.shots, deviceParams.shots.exponent) +
-				deviceParams.qubits.coefficient * Math.pow(numericFormData.qubits, deviceParams.qubits.exponent) +
-				deviceParams.batches.coefficient * Math.pow(numericFormData.batches, deviceParams.batches.exponent) +
-				deviceParams.depth.coefficient * Math.pow(numericFormData.depth, deviceParams.depth.exponent);
-		} else if (deviceParams.model === 'linear') {
-			// Linear model with interaction terms (new VTT Q50 model)
-			// Start with the constant term
-			result = deviceParams.constant;
-			
-			// Add each term based on its type
-			deviceParams.terms.forEach(term => {
-				if (term.type === 'single') {
-					// For single variable terms: coefficient * variable
-					// Convert shots to k-shots (thousands of shots) when needed
-					const value = term.variable === 'shots' ? numericFormData[term.variable] / 1000 : numericFormData[term.variable];
-					result += term.coefficient * value;
-				} else if (term.type === 'interaction') {
-					// For interaction terms: coefficient * variable1 * variable2
-					// Convert shots to k-shots (thousands of shots) when needed
-					let value1 = numericFormData[term.variables[0]];
-					let value2 = numericFormData[term.variables[1]];
-					
-					if (term.variables[0] === 'shots') value1 = value1 / 1000;
-					if (term.variables[1] === 'shots') value2 = value2 / 1000;
-					
-					result += term.coefficient * value1 * value2;
-				}
-			});
-			
-			// Ensure we don't have negative QPU seconds
-			result = Math.max(0, result);
-		}
-		
-		const qpuSeconds = parseFloat(result.toFixed(2));
+		// Calculate QPU seconds using our model
+		const qpuSeconds = calculateQPUSeconds(selectedDevice, numericFormData);
 		setEstimatedQPU(qpuSeconds);
 		
 		// Create estimation object
 		const estimation = {
 			device: selectedDevice,
-			deviceName: deviceParams.name,
+			deviceName: DEVICE_PARAMS[selectedDevice].name,
 			params: { ...numericFormData },
 			qpuSeconds: qpuSeconds,
 		};

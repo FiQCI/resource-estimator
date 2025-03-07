@@ -51,9 +51,9 @@ class JobHistoryManager {
 		this.saveHistory(updatedHistory);
 		return updatedHistory;
 	}
-	
+
 	/**
-	 * Clear all estimation history
+	 * Clear the entire history
 	 * @returns {Array} Empty array
 	 */
 	static clearHistory() {
