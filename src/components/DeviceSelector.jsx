@@ -123,13 +123,13 @@ const DeviceSelector = ({ selectedDevice, onDeviceSelect }) => {
 			<div style={gridStyle}>
 				<DeviceCard
 					title="Helmi"
-					image="/helmi.png"
+					image="./helmi.png"
 					isSelected={selectedDevice === 'helmi'}
 					onClick={() => onDeviceSelect('helmi')}
 				/>
 				<DeviceCard
 					title="VTT Q50"
-					image="/vtt-q50.jpg"
+					image="./vtt-q50.jpg"
 					isSelected={selectedDevice === 'vtt-q50'}
 					onClick={() => onDeviceSelect('vtt-q50')}
 				/>
