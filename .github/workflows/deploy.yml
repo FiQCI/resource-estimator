@@ -1,4 +1,5 @@
-name: Deploy Web Application
+name: Build and deploy site to GitHub Pages
+
 on:
   push:
     branches: [ "initial-version" ]
@@ -15,7 +16,6 @@ permissions:
 concurrency:
   group: 'pages'
   cancel-in-progress: true
-
 
 jobs:
   # Single deploy job since we're just deploying
@@ -36,11 +36,15 @@ jobs:
           node-version: 20
           cache: 'npm'
       
-      - name: Install dependencies
-        run: npm ci
+      # Clean install approach to fix the Rollup issue
+      - name: Clean npm cache
+        run: npm cache clean --force
       
-      - name: Debug directory
-        run: ls -la
+      - name: Remove existing node_modules and package-lock.json
+        run: rm -rf node_modules package-lock.json
+      
+      - name: Install dependencies with --no-optional
+        run: npm install --no-optional
       
       - name: Build
         run: npm run build
