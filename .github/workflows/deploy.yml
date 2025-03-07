@@ -1,4 +1,4 @@
-name: Build and deploy site to GitHub Pages
+name: Deploy Web Application
 on:
   push:
     branches: [ "initial-version" ]
@@ -28,31 +28,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-            ref: initial-version
-
+          ref: initial-version
+      
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
-
+      
       - name: Install dependencies
         run: npm ci
-
+      
+      - name: Debug directory
+        run: ls -la
+      
       - name: Build
         run: npm run build
-
+      
+      - name: Debug build output
+        run: |
+          echo "Build output structure:"
+          ls -la dist/
+          echo "Index.html content:"
+          cat dist/index.html
+      
       - name: Setup Pages
         uses: actions/configure-pages@v4
-
+      
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           # Upload dist folder
           path: './dist'
-
+      
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-
