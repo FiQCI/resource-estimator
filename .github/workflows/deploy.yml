@@ -1,0 +1,45 @@
+name: Build and deploy site to GitHub Pages
+on:
+  push:
+    branches: [ "initial-version" ]
+  pull_request:
+    branches: [ "initial-version" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+        with:
+          ref: initial-version
+
+      - name: Install Node.js packages
+        run: npm install
+
+      - name: Build the project
+        run: npm run build
+
+      - name: Upload artifact
+        id: deployment
+        uses: actions/upload-pages-artifact@v3.0.1
+        with:
+          path: dist/
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4.0.5
