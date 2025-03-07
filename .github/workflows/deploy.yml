@@ -48,16 +48,17 @@ jobs:
           ls -la dist/
           echo "Index.html content:"
           cat dist/index.html
-      
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
+
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           # Upload dist folder
           path: './dist'
-      
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+
+      - name: Publish to gh-pages
+        uses: JamesIves/github-pages-deploy-action@4.1.4
+        with:
+            branch: gh-pages
+            folder: dist
+            force: false
