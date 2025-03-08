@@ -218,7 +218,7 @@ const ResourceEstimator = () => {
 		width: '100%',
 		boxSizing: 'border-box',
 		fontFamily: fontFamily,
-		marginBottom: '1.05rem' // Added margin bottom to separate from the button
+		marginBottom: '1.05rem'
 	};
 
 	const resultValueStyle = {
@@ -349,7 +349,7 @@ const ResourceEstimator = () => {
 				)}
 			</div>
 			
-			{/* Right column with basket and history */}
+			{/* */}
 			<div style={rightColumnStyle}>
 				<BasketPanel 
 					basket={basket}

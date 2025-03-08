@@ -22,7 +22,6 @@ const DeviceCard = ({ title, image, isSelected, onClick }) => {
 		overflow: 'hidden'
 	};
 
-	// Adding a highlight effect instead of thick border
 	const highlightStyle = isSelected ? {
 		position: 'absolute',
 		top: 0,
@@ -35,7 +34,7 @@ const DeviceCard = ({ title, image, isSelected, onClick }) => {
 	const imgContainerStyle = {
 		marginBottom: '0.7rem',
 		width: '100%',
-		height: '9.8rem', // Increased by 40% from 7rem
+		height: '9.8rem',
 		display: 'flex',
 		alignItems: 'center',
 		justifyContent: 'center',
@@ -74,7 +73,7 @@ const DeviceCard = ({ title, image, isSelected, onClick }) => {
 			</div>
 			<h3 style={{
 				textAlign: 'center', 
-				fontSize: '1.1rem', // Increased from 0.875rem 
+				fontSize: '1.1rem', 
 				fontWeight: '500', 
 				color: '#333',
 				fontFamily: fontFamily,

@@ -1,8 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Header from './components/Header';
 import ResourceEstimator from './components/ResourceEstimator';
+import Documentation from './components/Documentation';
 
 function App() {
+	// State to control documentation visibility
+	const [isDocumentationOpen, setIsDocumentationOpen] = useState(false);
+
+	// Function to open documentation
+	const openDocumentation = () => {
+		setIsDocumentationOpen(true);
+	};
+
+	// Function to close documentation
+	const closeDocumentation = () => {
+		setIsDocumentationOpen(false);
+	};
+
 	// Override any default styles from index.css
 	const rootStyle = {
 		backgroundColor: '#eeeeee',
@@ -30,11 +44,17 @@ function App() {
 
 	return (
 		<div style={rootStyle}>
-			<Header />
+			<Header onOpenDocumentation={openDocumentation} />
 			
 			<main style={mainStyle}>
 				<ResourceEstimator />
 			</main>
+			
+			{/* Documentation component */}
+			<Documentation 
+				isOpen={isDocumentationOpen} 
+				onClose={closeDocumentation} 
+			/>
 			
 			<footer style={{
 				backgroundColor: '#2e52a5',

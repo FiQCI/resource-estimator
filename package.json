@@ -1,7 +1,7 @@
 {
   "name": "resource-estimator",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,8 +12,12 @@
   "dependencies": {
     "@tailwindcss/postcss": "^4.0.10",
     "@tailwindcss/vite": "^4.0.10",
+    "katex": "^0.16.21",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
@@ -26,6 +30,7 @@
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^15.15.0",
     "postcss": "^8.5.3",
+    "raw-loader": "^4.0.2",
     "tailwindcss": "^4.0.12",
     "vite": "^6.2.1"
   },
