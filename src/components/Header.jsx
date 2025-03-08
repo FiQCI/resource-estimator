@@ -1,7 +1,8 @@
 import React from 'react';
 import fiqciLogo from '/FiQCI-logo.png';
+import { DocumentationButton } from './Documentation';
 
-const Header = () => {
+const Header = ({ onOpenDocumentation }) => {
 	const headerStyle = {
 		backgroundColor: '#eeeeee',
 		padding: '0.5rem 1rem',
@@ -19,6 +20,11 @@ const Header = () => {
 		alignItems: 'center',
 		justifyContent: 'space-between',
 		paddingLeft: 0
+	};
+
+	// Add right padding to ensure button isn't cut off
+	const buttonContainerStyle = {
+		paddingRight: '20px'
 	};
 
 	return (
@@ -40,7 +46,9 @@ const Header = () => {
 				}}>
 					FiQCI Resource Estimator
 				</h1>
-				<div style={{ width: '120px' }}></div> {/* Spacer for balance */}
+				<div style={buttonContainerStyle}>
+					<DocumentationButton onClick={onOpenDocumentation} />
+				</div>
 			</div>
 		</header>
 	);
