@@ -14,7 +14,7 @@ const Documentation = ({ isOpen, onClose }) => {
 	useEffect(() => {
 		if (isOpen) {
 			setLoading(true);
-			fetch('/documentation.md')
+			fetch('../documentation.md')
 				.then(response => {
 					if (!response.ok) {
 						throw new Error(`Failed to load documentation: ${response.status} ${response.statusText}`);

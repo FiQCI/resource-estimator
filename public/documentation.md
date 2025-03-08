@@ -15,7 +15,7 @@ Where only the most significant terms are included. This shows that QPUs is stro
 
 Where $kshots = shots/1000$ and $B$ is number of circuits in a batch. 
 
-![image](/actual_vs_predicted-helmi.png)
+![image](./actual_vs_predicted-helmi.png)
 
 ## VTT Q50
 
@@ -23,7 +23,7 @@ $$QPUs = 3.687455 + 0.411647 \times B \times kshots + 0.039480 \times B + ...$$
 
 VTT Q50 has larger constant initialisation time than Helmi. Runtime on Q50 is dependent on number of circuits in a batch and number of shots. The circuit depth plays little to no role in estimated QPUs. Increasing the number of qubits contributes very little to the overall runtime. 
 
-![image](/actual_vs_predicted-vtt-q50.png)
+![image](./actual_vs_predicted-vtt-q50.png)
 
 ## Limitations of the estimation 
 
