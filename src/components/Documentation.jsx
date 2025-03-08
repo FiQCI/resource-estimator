@@ -14,7 +14,16 @@ const Documentation = ({ isOpen, onClose }) => {
 	useEffect(() => {
 		if (isOpen) {
 			setLoading(true);
-			fetch('../documentation.md')
+			
+			// Get the base URL from Vite's environment variable or use an empty string as fallback
+			const baseUrl = import.meta.env.BASE_URL || '/';
+			
+			// Construct the path to documentation.md, ensuring there are no double slashes
+			const docPath = `${baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl}/documentation.md`;
+			
+			console.log('Fetching documentation from:', docPath); // For debugging
+			
+			fetch(docPath)
 				.then(response => {
 					if (!response.ok) {
 						throw new Error(`Failed to load documentation: ${response.status} ${response.statusText}`);
@@ -121,10 +130,16 @@ const Documentation = ({ isOpen, onClose }) => {
 		img: ({ node, ...props }) => {
 			let src = props.src;
 			
-			// If the path is relative and doesn't start with a slash, 
-			// prefix it with a slash to make it relative to the public folder
-			if (src && !src.startsWith('http') && !src.startsWith('/')) {
-				src = `/${src}`;
+			// Get the base URL
+			const baseUrl = import.meta.env.BASE_URL || '/';
+			
+			// If the path is relative and doesn't start with http or the baseUrl,
+			// prefix it with the baseUrl
+			if (src && !src.startsWith('http') && !src.startsWith(baseUrl)) {
+				// Remove leading slash from src if it exists
+				src = src.startsWith('/') ? src.slice(1) : src;
+				// Add baseUrl, ensuring no double slashes
+				src = `${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}${src}`;
 			}
 			
 			return (

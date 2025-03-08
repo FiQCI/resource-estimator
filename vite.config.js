@@ -1,25 +1,30 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Get the repo name from package.json or GitHub env variable
+const getRepoName = () => {
+  // For GitHub Pages deployment, use the repository name as the base
+  if (process.env.GITHUB_REPOSITORY) {
+    const repoName = process.env.GITHUB_REPOSITORY.split('/')[1];
+    return `/${repoName}/`;
+  }
+  // Fallback - you can replace this with your actual repo name
+  return '/';
+};
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '', // Repo path name for GitHub Pages
-  
+  base: process.env.NODE_ENV === 'production' ? getRepoName() : '/',
   build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-    // Ensure assets use the correct public path
-    assetsDir: 'assets',
-    // Make sure to explicitly make inline scripts external
-    assetsInlineLimit: 0,
+    chunkSizeWarningLimit: 800, // Increase the warning limit
     rollupOptions: {
       output: {
-        // Format output to ensure correct paths
-        entryFileNames: 'assets/[name].[hash].js',
-        chunkFileNames: 'assets/[name].[hash].js',
-        assetFileNames: 'assets/[name].[hash].[ext]'
-      }
-    }
-  }
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          markdown: ['react-markdown', 'remark-math', 'rehype-katex', 'katex'],
+        },
+      },
+    },
+  },
 })
