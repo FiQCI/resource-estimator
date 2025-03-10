@@ -2,6 +2,13 @@
 Changelog
 =========
 
+Version 0.2.1
+============
+
+* Add FAQ section.
+  `#3 <https://github.com/FiQCI/resource-estimator/pull/3>`_
+
+
 Version 0.2.0
 ============
 
