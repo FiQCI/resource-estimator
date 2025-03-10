@@ -33,7 +33,7 @@ The model does not work well for circuits with a high depth (`>1000`) count, how
 
 - **What is the constant initialization time that is stated above?**
 
-Both VTTQ50 and Helmi have a constant initialization time associated with any quantum job submitted to them. Therefore, submitting a batch (or list) of quantum circuits does not apply this constant initialization time. However, submitting many smaller batches of quantum circuits does apply this time. This is mostly due to the initialization of the control electronics needed before job submission. 
+Both VTTQ50 and Helmi have a constant initialization time associated with any quantum job submitted to them. Therefore, when submitting a batch (list of circuits), the constant initialization time applies to the whole batch.However, submitting many smaller batches of quantum circuits does apply this time. This is mostly due to the initialization of the control electronics needed before job submission. 
 
 - **Is the initialization time needed every time a parameter is updated in the quantum circuit?**
 
