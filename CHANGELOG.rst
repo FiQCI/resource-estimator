@@ -2,6 +2,14 @@
 Changelog
 =========
 
+Version 0.2.2
+============
+
+* Add link for data.
+  `#4 <https://github.com/FiQCI/resource-estimator/pull/4>`_
+
+
+
 Version 0.2.1
 ============
 
