@@ -1,7 +1,7 @@
 # How it works
 
 
-Data is gathered by submitting quantum circuits with varying values for shots, depth, number of circuits in a batch and number of qubits. You can view the data gathered [here](). QPU seconds is calculated from timestamps returned via IQM Client as explained [here](https://docs.meetiqm.com/iqm-client/integration_guide.html#job-phases-and-related-timestamps). QPU seconds is calculated as `execution_end` - `execution_start`. 
+Data is gathered by submitting quantum circuits with varying values for shots, depth, number of circuits in a batch and number of qubits. You can view the data gathered [here](https://github.com/FiQCI/resource-estimator/tree/58fa3f5910bab10e0890d5170e548e449cde6b71/data_analysis/data). QPU seconds is calculated from timestamps returned via IQM Client as explained [here](https://docs.meetiqm.com/iqm-client/integration_guide.html#job-phases-and-related-timestamps). QPU seconds is calculated as `execution_end` - `execution_start`. 
 
 The data gathered is analysed and a polynomial [`LinearRegression`](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LinearRegression.html) model is created. This model is used when calculating the QPU seconds estimated. A separate model is created for each quantum computer. 
 
@@ -33,7 +33,7 @@ The model does not work well for circuits with a high depth (`>1000`) count, how
 
 - **What is the constant initialization time that is stated above?**
 
-Both VTTQ50 and Helmi have a constant initialization time associated with any quantum job submitted to them. Therefore, when submitting a batch (list of circuits), the constant initialization time applies to the whole batch.However, submitting many smaller batches of quantum circuits does apply this time. This is mostly due to the initialization of the control electronics needed before job submission. 
+Both VTTQ50 and Helmi have a constant initialization time associated with any quantum job submitted to them. For a batch of circuits, the constant initialization time applies to the whole batch (list of circuits). However, submitting many smaller batches of quantum circuits does apply this time. This is mostly due to the initialization of the control electronics needed before job submission. 
 
 - **Is the initialization time needed every time a parameter is updated in the quantum circuit?**
 
