@@ -2,6 +2,13 @@
 Changelog
 =========
 
+Version 0.3.0
+============
+
+* Add python source files for generating data, building the model, and validating the model.
+* Update VTT Q50 model coefficients.
+  `#5 <https://github.com/FiQCI/resource-estimator/pull/5>`_
+
 Version 0.2.2
 ============
 
