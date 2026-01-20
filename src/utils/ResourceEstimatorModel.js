@@ -49,31 +49,31 @@ const DEVICE_PARAMS = {
 
 /**
  * Calculate the contribution of a single term in the model.
- * 
+ *
  * @param {Object} term - Term configuration object
  * @param {Object} params - Normalized input parameters
  * @returns {number} Term contribution to the result
  */
 function calculateTerm(term, params) {
 	const termType = term.type;
-	
+
 	if (termType === 'single') {
 		return term.coefficient * params[term.variable];
-		
+
 	} else if (termType === 'interaction') {
 		const [var1, var2] = term.variables;
 		return term.coefficient * params[var1] * params[var2];
-		
+
 	} else if (termType === 'power') {
 		return term.coefficient * Math.pow(params[term.variable], term.exponent);
 	}
-	
+
 	return 0.0;
 }
 
 /**
  * Safely calculate the depth term contribution, preventing negative scaling issues.
- * 
+ *
  * @param {Object} deviceConfig - Device configuration
  * @param {Object} params - Normalized input parameters
  * @returns {number} Depth term contribution (with safety checks)
@@ -83,20 +83,20 @@ function calculateDepthTerm(deviceConfig, params) {
 	const depthTerm = deviceConfig.terms.find(
 		term => term.type === 'single' && term.variable === 'depth'
 	);
-	
+
 	if (!depthTerm) {
 		return 0.0;
 	}
-	
+
 	// If depth coefficient is negative, we need to handle it specially
 	if (depthTerm.coefficient < 0) {
 		// Set a reasonable maximum effect the depth can have
 		// This prevents very large depths from unrealistically reducing the runtime
 		const maxDepthEffect = Math.abs(depthTerm.coefficient) * 100; // Assume 100 is a reasonable depth cap
-		
+
 		// Calculate actual depth effect
 		const actualDepthEffect = depthTerm.coefficient * params.depth;
-		
+
 		// Limit the negative effect to the maximum
 		return Math.max(actualDepthEffect, -maxDepthEffect);
 	} else {
@@ -107,7 +107,7 @@ function calculateDepthTerm(deviceConfig, params) {
 
 /**
  * Calculate QPU seconds based on the device model and input parameters.
- * 
+ *
  * @param {string} device - Device identifier ('helmi' or 'vtt-q50')
  * @param {Object} params - Dictionary with keys 'batches', 'depth', 'shots', and 'qubits'
  * @returns {number} Estimated QPU seconds
@@ -117,10 +117,10 @@ function calculateQPUSeconds(device, params) {
 		console.error(`Unknown device: ${device}`);
 		return 0;
 	}
-	
+
 	// Get device configuration
 	const deviceConfig = DEVICE_PARAMS[device];
-	
+
 	// Create a normalized parameters dict with kshots
 	const normParams = {
 		batches: parseInt(params.batches, 10) || 1,
@@ -129,28 +129,28 @@ function calculateQPUSeconds(device, params) {
 		qubits: parseInt(params.qubits, 10) || 2,
 		kshots: (parseInt(params.shots, 10) || 1000) / 1000 // Convert shots to kshots
 	};
-	
+
 	// Handle depth parameter to avoid negative scaling
 	const depthTerm = calculateDepthTerm(deviceConfig, normParams);
-	
+
 	// Start with the intercept
 	let result = deviceConfig.intercept;
-	
+
 	// Add contribution from each term
 	for (const term of deviceConfig.terms) {
 		// Skip the depth term as we handle it separately
 		if (term.type === 'single' && term.variable === 'depth') {
 			continue;
 		}
-		
+
 		const termValue = calculateTerm(term, normParams);
 		result += termValue;
 	}
-	
+
 	// Add the safely calculated depth term
 	result += depthTerm;
-	
-	
+
+
 	// Return rounded to 2 decimal places
 	return parseFloat(result.toFixed(2));
 }

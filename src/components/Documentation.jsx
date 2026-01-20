@@ -14,15 +14,15 @@ const Documentation = ({ isOpen, onClose }) => {
 	useEffect(() => {
 		if (isOpen) {
 			setLoading(true);
-			
+
 			// Get the base URL from Vite's environment variable or use an empty string as fallback
 			const baseUrl = import.meta.env.BASE_URL || '/';
-			
+
 			// Construct the path to documentation.md, ensuring there are no double slashes
 			const docPath = `${baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl}/documentation.md`;
-			
+
 			console.log('Fetching documentation from:', docPath); // For debugging
-			
+
 			fetch(docPath)
 				.then(response => {
 					if (!response.ok) {
@@ -129,10 +129,10 @@ const Documentation = ({ isOpen, onClose }) => {
 		// Custom image component to handle paths and styling
 		img: ({ node, ...props }) => {
 			let src = props.src;
-			
+
 			// Get the base URL
 			const baseUrl = import.meta.env.BASE_URL || '/';
-			
+
 			// If the path is relative and doesn't start with http or the baseUrl,
 			// prefix it with the baseUrl
 			if (src && !src.startsWith('http') && !src.startsWith(baseUrl)) {
@@ -141,9 +141,9 @@ const Documentation = ({ isOpen, onClose }) => {
 				// Add baseUrl, ensuring no double slashes
 				src = `${baseUrl.endsWith('/') ? baseUrl : baseUrl + '/'}${src}`;
 			}
-			
+
 			return (
-				<img 
+				<img
 					{...props}
 					src={src}
 					alt={props.alt || ''}
@@ -163,7 +163,7 @@ const Documentation = ({ isOpen, onClose }) => {
 			<div style={containerStyle} onClick={e => e.stopPropagation()}>
 				<div style={headerStyle}>
 					<h2 style={titleStyle}>FiQCI Resource Estimator Documentation</h2>
-					<button 
+					<button
 						style={closeButtonStyle}
 						onClick={onClose}
 					>
@@ -200,7 +200,7 @@ export default Documentation;
 // Documentation button component for reuse
 export const DocumentationButton = ({ onClick }) => {
 	return (
-		<button 
+		<button
 			onClick={onClick}
 			style={{
 				backgroundColor: '#2e52a5',

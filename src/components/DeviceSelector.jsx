@@ -72,9 +72,9 @@ const DeviceCard = ({ title, image, isSelected, onClick }) => {
 				/>
 			</div>
 			<h3 style={{
-				textAlign: 'center', 
-				fontSize: '1.1rem', 
-				fontWeight: '500', 
+				textAlign: 'center',
+				fontSize: '1.1rem',
+				fontWeight: '500',
 				color: '#333',
 				fontFamily: fontFamily,
 				margin: '0 0 0.35rem 0'
@@ -110,10 +110,10 @@ const DeviceSelector = ({ selectedDevice, onDeviceSelect }) => {
 	return (
 		<div style={containerStyle}>
 			<h2 style={{
-				textAlign: 'center', 
+				textAlign: 'center',
 				fontSize: '1.5rem',
-				fontWeight: '500', 
-				color: '#333333', 
+				fontWeight: '500',
+				color: '#333333',
 				margin: '0 0 1.05rem 0',
 				fontFamily: fontFamily
 			}}>
