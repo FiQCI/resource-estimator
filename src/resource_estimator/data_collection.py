@@ -137,8 +137,73 @@ def _run_isolated_sweeps(
 	return all_data
 
 
+def _save_checkpoint(data: list[dict[str, Any]], checkpoint_path: str) -> None:
+	"""Save collected data to checkpoint file.
+
+	Args:
+		data: List of data points to save
+		checkpoint_path: Path to checkpoint file
+	"""
+	import pandas as pd
+	from pathlib import Path
+
+	Path(checkpoint_path).parent.mkdir(parents=True, exist_ok=True)
+	pd.DataFrame(data).to_csv(checkpoint_path, index=False)
+	logger.debug(f"Checkpoint saved: {len(data)} data points")
+
+
+def _load_checkpoint(checkpoint_path: str) -> list[dict[str, Any]]:
+	"""Load data from checkpoint file if it exists.
+
+	Args:
+		checkpoint_path: Path to checkpoint file
+
+	Returns:
+		List of previously collected data points, or empty list if no checkpoint exists
+	"""
+	import pandas as pd
+	from pathlib import Path
+
+	if not Path(checkpoint_path).exists():
+		return []
+
+	try:
+		df = pd.read_csv(checkpoint_path)
+		data = df.to_dict("records")
+		logger.info(f"Resuming from checkpoint: {len(data)} data points already collected")
+		return data
+	except Exception as e:
+		logger.warning(f"Failed to load checkpoint: {e}. Starting fresh.")
+		return []
+
+
+def _is_already_collected(params: dict[str, int], collected_data: list[dict[str, Any]]) -> bool:
+	"""Check if parameters have already been collected.
+
+	Args:
+		params: Parameter dictionary to check
+		collected_data: List of already collected data points
+
+	Returns:
+		True if this parameter combination has been collected
+	"""
+	for data_point in collected_data:
+		if (
+			data_point.get("num_qubits") == params.get("qubits")
+			and data_point.get("depth") == params.get("depth")
+			and data_point.get("batches") == params.get("batches")
+			and data_point.get("shots") == params.get("shots")
+		):
+			return True
+	return False
+
+
 def collect_timing_data(
-	backend: Any, num_samples: int = 50, include_isolated: bool = True, job_timeout: float = 900.0
+	backend: Any,
+	num_samples: int = 50,
+	include_isolated: bool = True,
+	job_timeout: float = 900.0,
+	checkpoint_path: str | None = None,
 ) -> list[dict[str, Any]]:
 	"""Collect quantum timing data through systematic sampling.
 
@@ -147,6 +212,7 @@ def collect_timing_data(
 		num_samples: Number of comprehensive samples
 		include_isolated: Include isolated parameter sweeps
 		job_timeout: Timeout for individual job completion in seconds (default: 900.0 from iqm-client)
+		checkpoint_path: Path to checkpoint file for saving/resuming data collection
 
 	Returns:
 		List of timing data points
@@ -154,24 +220,42 @@ def collect_timing_data(
 	max_qubits = len(backend.architecture.qubits)
 	param_ranges = {"batches": (1, 25), "qubits": (1, max_qubits), "depth": (1, 100), "shots": (1000, 50000)}
 	base_params = {"batches": 1, "qubits": 2, "depth": 5, "shots": 1000}
-	all_data = []
+
+	# Load existing data if resuming
+	all_data = _load_checkpoint(checkpoint_path) if checkpoint_path else []
 
 	# Isolated parameter sweeps
 	if include_isolated:
 		logger.info("Running isolated parameter sweeps...")
-		all_data.extend(_run_isolated_sweeps(backend, param_ranges, base_params, job_timeout))
+		isolated_data = _run_isolated_sweeps(backend, param_ranges, base_params, job_timeout)
+		all_data.extend(isolated_data)
+		if checkpoint_path:
+			_save_checkpoint(all_data, checkpoint_path)
 
 	# Latin Hypercube sampling
 	logger.info(f"Collecting {num_samples} samples via Latin Hypercube...")
 	samples = generate_latin_hypercube_samples(param_ranges, num_samples)
 
+	# Skip already collected samples when resuming
+	skipped = 0
 	for params in tqdm(samples, desc="Comprehensive sampling"):
+		if checkpoint_path and _is_already_collected(params, all_data):
+			skipped += 1
+			continue
+
 		result = run_single_experiment(
 			backend, params["qubits"], params["depth"], params["batches"], params["shots"], job_timeout
 		)
 
 		if result["error"] is None and result["qpu_seconds"] is not None:
 			all_data.append(result)
+
+			# Save checkpoint after each successful experiment
+			if checkpoint_path:
+				_save_checkpoint(all_data, checkpoint_path)
+
+	if checkpoint_path and skipped > 0:
+		logger.info(f"Skipped {skipped} already-collected samples")
 
 	logger.info(f"Collected {len(all_data)} data points")
 	return all_data

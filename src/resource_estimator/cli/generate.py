@@ -23,16 +23,25 @@ def main():
 		default=900.0,
 		help="Timeout for job completion in seconds (default: 900, same as iqm-client DEFAULT_TIMEOUT_SECONDS)",
 	)
+	parser.add_argument(
+		"--checkpoint",
+		type=str,
+		help="Path to checkpoint file for incremental saves and resume capability (default: <output>.checkpoint.csv)",
+	)
 	args = parser.parse_args()
 
 	try:
 		backend = connect_to_backend(args.server_url)
+
+		# Use provided checkpoint path or create default based on output file
+		checkpoint_path = args.checkpoint if args.checkpoint else f"{args.output}.checkpoint.csv"
 
 		data = collect_timing_data(
 			backend=backend,
 			num_samples=args.samples,
 			include_isolated=not args.no_isolated,
 			job_timeout=args.job_timeout,
+			checkpoint_path=checkpoint_path,
 		)
 
 		if not data:
