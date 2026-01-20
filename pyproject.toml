@@ -1,6 +1,6 @@
 [project]
 name = "resource-estimator"
-version = "1.0.0"
+dynamic = ["version"]
 description = ""
 readme = "README.md"
 requires-python = ">=3.11, <3.12"
@@ -24,8 +24,14 @@ resource-estimator-build = "resource_estimator.cli.build:main"
 resource-estimator-validate = "resource_estimator.cli.validate:main"
 
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=68.0.0", "setuptools_scm[toml]>=7"]
 build-backend = "setuptools.build_meta"
+
+
+[tool.setuptools_scm]
+# See configuration details in https://github.com/pypa/setuptools_scm
+version_scheme = "no-guess-dev"
+fallback_version = "0.1"
 
 [tool.setuptools.packages.find]
 where = ["src"]
