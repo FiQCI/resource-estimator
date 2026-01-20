@@ -69,7 +69,7 @@ def run_single_experiment(
 		}
 
 	except Exception as e:
-		logger.warning(f"Experiment failed: {e}")
+		logger.warning(f"Experiment failed: {e}", exc_info=True)
 		return {
 			"num_qubits": num_qubits,
 			"depth": depth,
