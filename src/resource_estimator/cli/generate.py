@@ -17,7 +17,12 @@ def main():
 	parser.add_argument("--output", type=str, required=True, help="Output CSV file path")
 	parser.add_argument("--samples", type=int, default=50, help="Number of samples (default: 50)")
 	parser.add_argument("--no-isolated", action="store_true", help="Skip isolated parameter sweeps")
-	parser.add_argument("--max-runtime", type=float, default=120.0, help="Max runtime per job (default: 120)")
+	parser.add_argument(
+		"--job-timeout",
+		type=float,
+		default=900.0,
+		help="Timeout for job completion in seconds (default: 900, same as iqm-client DEFAULT_TIMEOUT_SECONDS)",
+	)
 	args = parser.parse_args()
 
 	try:
@@ -27,7 +32,7 @@ def main():
 			backend=backend,
 			num_samples=args.samples,
 			include_isolated=not args.no_isolated,
-			max_runtime=args.max_runtime,
+			job_timeout=args.job_timeout,
 		)
 
 		if not data:

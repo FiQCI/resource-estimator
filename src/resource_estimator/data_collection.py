@@ -55,40 +55,9 @@ def run_single_experiment(
 		result = job.result(timeout=timeout)
 
 		# Extract timing from result.timeline (iqm-client>=33.0.2)
-		qpu_seconds = 0.0
-		metadata_found = False
-
-		try:
-			if hasattr(result, "timeline") and result.timeline:
-				# Find execution_started and execution_ended entries
-				exec_start_time = None
-				exec_end_time = None
-
-				for entry in result.timeline:
-					if hasattr(entry, "status") and hasattr(entry, "timestamp"):
-						if entry.status == "execution_started":
-							exec_start_time = entry.timestamp
-						elif entry.status == "execution_ended":
-							exec_end_time = entry.timestamp
-
-				# Calculate QPU seconds from timeline
-				if exec_start_time and exec_end_time:
-					qpu_seconds = (exec_end_time - exec_start_time).total_seconds()
-					metadata_found = True
-					logger.debug(
-						f"Extracted QPU time from timeline: {qpu_seconds:.3f}s "
-						f"(qubits={num_qubits}, depth={depth}, batches={batches}, shots={shots})"
-					)
-
-		except (AttributeError, TypeError, KeyError) as e:
-			logger.debug(f"Timeline extraction failed: {e}")
-
-		if not metadata_found:
-			logger.warning(
-				f"No timing data found in result.timeline for experiment "
-				f"(qubits={num_qubits}, depth={depth}, batches={batches}, shots={shots}). "
-				f"QPU time set to 0.0"
-			)
+		exec_start = next(e for e in result.timeline if e.status == "execution_started")
+		exec_end = next(e for e in result.timeline if e.status == "execution_ended")
+		qpu_seconds = (exec_end.timestamp - exec_start.timestamp).total_seconds()
 
 		return {
 			"num_qubits": num_qubits,
@@ -140,9 +109,16 @@ def generate_latin_hypercube_samples(
 
 
 def _run_isolated_sweeps(
-	backend: Any, param_ranges: dict, base_params: dict, max_runtime: float
+	backend: Any, param_ranges: dict, base_params: dict, job_timeout: float
 ) -> list[dict[str, Any]]:
-	"""Run isolated parameter sweeps."""
+	"""Run isolated parameter sweeps.
+
+	Args:
+		backend: Quantum backend
+		param_ranges: Dictionary of parameter ranges
+		base_params: Base parameters for the sweep
+		job_timeout: Timeout for individual jobs
+	"""
 	all_data = []
 	for param_name, (min_val, max_val) in param_ranges.items():
 		num_points = min(10, max_val - min_val + 1)
@@ -153,18 +129,16 @@ def _run_isolated_sweeps(
 			params[param_name] = int(val)
 
 			result = run_single_experiment(
-				backend, params["qubits"], params["depth"], params["batches"], params["shots"], max_runtime * 1.5
+				backend, params["qubits"], params["depth"], params["batches"], params["shots"], job_timeout
 			)
 
 			if result["error"] is None and result["qpu_seconds"] is not None:
 				all_data.append(result)
-				if result["qpu_seconds"] > max_runtime * 1.5:
-					break
 	return all_data
 
 
 def collect_timing_data(
-	backend: Any, num_samples: int = 50, include_isolated: bool = True, max_runtime: float = 120.0
+	backend: Any, num_samples: int = 50, include_isolated: bool = True, job_timeout: float = 900.0
 ) -> list[dict[str, Any]]:
 	"""Collect quantum timing data through systematic sampling.
 
@@ -172,7 +146,7 @@ def collect_timing_data(
 		backend: Quantum backend
 		num_samples: Number of comprehensive samples
 		include_isolated: Include isolated parameter sweeps
-		max_runtime: Maximum runtime per job
+		job_timeout: Timeout for individual job completion in seconds (default: 900.0 from iqm-client)
 
 	Returns:
 		List of timing data points
@@ -185,7 +159,7 @@ def collect_timing_data(
 	# Isolated parameter sweeps
 	if include_isolated:
 		logger.info("Running isolated parameter sweeps...")
-		all_data.extend(_run_isolated_sweeps(backend, param_ranges, base_params, max_runtime))
+		all_data.extend(_run_isolated_sweeps(backend, param_ranges, base_params, job_timeout))
 
 	# Latin Hypercube sampling
 	logger.info(f"Collecting {num_samples} samples via Latin Hypercube...")
@@ -193,7 +167,7 @@ def collect_timing_data(
 
 	for params in tqdm(samples, desc="Comprehensive sampling"):
 		result = run_single_experiment(
-			backend, params["qubits"], params["depth"], params["batches"], params["shots"], max_runtime * 1.5
+			backend, params["qubits"], params["depth"], params["batches"], params["shots"], job_timeout
 		)
 
 		if result["error"] is None and result["qpu_seconds"] is not None:
