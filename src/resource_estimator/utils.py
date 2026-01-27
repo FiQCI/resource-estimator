@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+import json
 
 import pandas as pd
 
@@ -56,10 +57,16 @@ def save_model_as_json(coefficients: dict, metrics: dict, output_path: Path):
 		metrics: Model metrics
 		output_path: Output file path
 	"""
-	import json
 
-	# Resolve and validate path to prevent traversal
-	output_path = Path(output_path).resolve()
+	# Convert to Path object and resolve to absolute path
+	output_path = Path(output_path)
+
+	# Check for path traversal attempts before resolving
+	if ".." in str(output_path):
+		raise ValueError("Path traversal detected in output path")
+
+	# Resolve to absolute path
+	output_path = output_path.resolve()
 
 	data = {
 		"intercept": coefficients.get("intercept", 0.0),
@@ -69,7 +76,7 @@ def save_model_as_json(coefficients: dict, metrics: dict, output_path: Path):
 
 	output_path.parent.mkdir(parents=True, exist_ok=True)
 
-	with open(output_path, "w") as f:
+	with output_path.open("w") as f:
 		json.dump(data, f, indent=2)
 
 	logger.info(f"Saved model to {output_path}")
