@@ -10,7 +10,7 @@ from resource_estimator.model import (
 	prepare_training_data,
 	train_polynomial_model,
 )
-from resource_estimator.utils import load_data_from_csv, save_model_as_json
+from resource_estimator.utils import load_data_from_csv, save_model_as_json, update_javascript_model
 
 logger = setup_logging()
 
@@ -24,6 +24,11 @@ def main():
 	parser.add_argument("--output-json", type=str, help="Output JSON file")
 	parser.add_argument("--degree", type=int, default=2, help="Polynomial degree (default: 2)")
 	parser.add_argument("--alpha", type=float, default=0.01, help="Regularization strength (default: 0.01)")
+	parser.add_argument(
+		"--update-frontend",
+		type=str,
+		help="Path to ResourceEstimatorModel.js to automatically update (e.g., src/utils/ResourceEstimatorModel.js)",
+	)
 	args = parser.parse_args()
 
 	try:
@@ -55,6 +60,13 @@ def main():
 			from pathlib import Path
 
 			save_model_as_json(coefficients, metrics, Path(args.output_json))
+
+		# Update frontend JavaScript file if requested
+		if args.update_frontend:
+			from pathlib import Path
+
+			update_javascript_model(Path(args.update_frontend), args.device, js_code)
+			logger.info(f"Updated frontend model in {args.update_frontend}")
 
 		logger.info("Model building completed successfully!")
 

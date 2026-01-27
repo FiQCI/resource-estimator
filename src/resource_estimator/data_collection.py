@@ -245,18 +245,25 @@ def _is_already_collected(params: dict[str, int], collected_data: list[dict[str,
 	"""Check if parameters have already been collected.
 
 	Args:
-		params: Parameter dictionary to check
-		collected_data: List of already collected data points
+		params: Parameter dictionary to check (keys: qubits, depth, batches, shots)
+		collected_data: List of already collected data points (keys: num_qubits, depth, batches, shots)
 
 	Returns:
 		True if this parameter combination has been collected
 	"""
+	# Handle both key naming conventions: 'qubits' vs 'num_qubits'
+	param_qubits = params.get("qubits") or params.get("num_qubits")
+	param_depth = params.get("depth")
+	param_batches = params.get("batches")
+	param_shots = params.get("shots")
+
 	for data_point in collected_data:
+		data_qubits = data_point.get("num_qubits") or data_point.get("qubits")
 		if (
-			data_point.get("num_qubits") == params.get("qubits")
-			and data_point.get("depth") == params.get("depth")
-			and data_point.get("batches") == params.get("batches")
-			and data_point.get("shots") == params.get("shots")
+			data_qubits == param_qubits
+			and data_point.get("depth") == param_depth
+			and data_point.get("batches") == param_batches
+			and data_point.get("shots") == param_shots
 		):
 			return True
 	return False
