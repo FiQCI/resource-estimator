@@ -99,11 +99,26 @@ def run_single_experiment(
 		batches: Number of circuits in batch
 		shots: Number of measurement shots
 		timeout: Job timeout in seconds
+		limits: Server limits for validation (uses defaults if None)
 
 	Returns:
 		Dictionary with experiment results including qpu_seconds
 	"""
+	result_template = {
+		"num_qubits": num_qubits,
+		"depth": depth,
+		"batches": batches,
+		"shots": shots,
+		"qpu_seconds": None,
+		"error": None,
+	}
+
 	try:
+		# Validate parameters against server limits
+		is_valid, error_msg = validate_job_parameters(num_qubits, depth, batches, shots, limits)
+		if not is_valid:
+			raise ValueError(f"Parameter validation failed: {error_msg}")
+
 		# Generate random circuits
 		circuits = [create_random_circuit(num_qubits, depth) for _ in range(batches)]
 
@@ -119,25 +134,13 @@ def run_single_experiment(
 		exec_end = next(e for e in result.timeline if e.status == "execution_ended")
 		qpu_seconds = (exec_end.timestamp - exec_start.timestamp).total_seconds()
 
-		return {
-			"num_qubits": num_qubits,
-			"depth": depth,
-			"batches": batches,
-			"shots": shots,
-			"qpu_seconds": qpu_seconds,
-			"error": None,
-		}
+		result_template["qpu_seconds"] = qpu_seconds
+		return result_template
 
 	except Exception as e:
 		logger.warning(f"Experiment failed: {e}", exc_info=True)
-		return {
-			"num_qubits": num_qubits,
-			"depth": depth,
-			"batches": batches,
-			"shots": shots,
-			"qpu_seconds": None,
-			"error": str(e),
-		}
+		result_template["error"] = str(e)
+		return result_template
 
 
 def generate_latin_hypercube_samples(
@@ -169,7 +172,7 @@ def generate_latin_hypercube_samples(
 
 
 def _run_isolated_sweeps(
-	backend: Any, param_ranges: dict, base_params: dict, job_timeout: float
+	backend: Any, param_ranges: dict, base_params: dict, job_timeout: float, limits: ServerLimits | None = None
 ) -> list[dict[str, Any]]:
 	"""Run isolated parameter sweeps.
 
@@ -178,6 +181,7 @@ def _run_isolated_sweeps(
 		param_ranges: Dictionary of parameter ranges
 		base_params: Base parameters for the sweep
 		job_timeout: Timeout for individual jobs
+		limits: Server limits for validation
 	"""
 	all_data = []
 	for param_name, (min_val, max_val) in param_ranges.items():
@@ -189,7 +193,7 @@ def _run_isolated_sweeps(
 			params[param_name] = int(val)
 
 			result = run_single_experiment(
-				backend, params["qubits"], params["depth"], params["batches"], params["shots"], job_timeout
+				backend, params["qubits"], params["depth"], params["batches"], params["shots"], job_timeout, limits
 			)
 
 			if result["error"] is None and result["qpu_seconds"] is not None:
@@ -264,6 +268,7 @@ def collect_timing_data(
 	include_isolated: bool = True,
 	job_timeout: float = 900.0,
 	checkpoint_path: str | None = None,
+	limits: ServerLimits | None = None,
 ) -> list[dict[str, Any]]:
 	"""Collect quantum timing data through systematic sampling.
 
@@ -273,13 +278,35 @@ def collect_timing_data(
 		include_isolated: Include isolated parameter sweeps
 		job_timeout: Timeout for individual job completion in seconds (default: 900.0 from iqm-client)
 		checkpoint_path: Path to checkpoint file for saving/resuming data collection
+		limits: Server limits for validation (uses defaults if None)
 
 	Returns:
 		List of timing data points
 	"""
+	if limits is None:
+		limits = ServerLimits()
+		logger.info(
+			f"Using default server limits: max_shots={limits.max_shots}, max_circuits={limits.max_circuits}, max_instructions={limits.max_instructions_per_circuit}"
+		)
+
 	max_qubits = len(backend.architecture.qubits)
-	param_ranges = {"batches": (1, 25), "qubits": (1, max_qubits), "depth": (1, 100), "shots": (1000, 50000)}
+	# Adjust parameter ranges to respect server limits
+	max_safe_batches = min(25, limits.max_circuits)
+	max_safe_shots = min(50000, limits.max_shots)
+	# Ensure depth * qubits * 2 + qubits < max_instructions (with safety margin)
+	max_safe_depth = min(100, (limits.max_instructions_per_circuit - max_qubits) // (max_qubits * 2))
+
+	param_ranges = {
+		"batches": (1, max_safe_batches),
+		"qubits": (1, max_qubits),
+		"depth": (1, max_safe_depth),
+		"shots": (1000, max_safe_shots),
+	}
 	base_params = {"batches": 1, "qubits": 2, "depth": 5, "shots": 1000}
+
+	logger.info(
+		f"Parameter ranges adjusted for server limits: batches=(1,{max_safe_batches}), depth=(1,{max_safe_depth}), shots=(1000,{max_safe_shots})"
+	)
 
 	# Load existing data if resuming
 	all_data = _load_checkpoint(checkpoint_path) if checkpoint_path else []
@@ -287,7 +314,7 @@ def collect_timing_data(
 	# Isolated parameter sweeps
 	if include_isolated:
 		logger.info("Running isolated parameter sweeps...")
-		isolated_data = _run_isolated_sweeps(backend, param_ranges, base_params, job_timeout)
+		isolated_data = _run_isolated_sweeps(backend, param_ranges, base_params, job_timeout, limits)
 		all_data.extend(isolated_data)
 		if checkpoint_path:
 			_save_checkpoint(all_data, checkpoint_path)
@@ -304,7 +331,7 @@ def collect_timing_data(
 			continue
 
 		result = run_single_experiment(
-			backend, params["qubits"], params["depth"], params["batches"], params["shots"], job_timeout
+			backend, params["qubits"], params["depth"], params["batches"], params["shots"], job_timeout, limits
 		)
 
 		if result["error"] is None and result["qpu_seconds"] is not None:
