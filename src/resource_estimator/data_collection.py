@@ -1,6 +1,7 @@
 """Data collection module for quantum resource estimation."""
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -11,6 +12,59 @@ from scipy.stats import qmc
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ServerLimits:
+	"""IQM server limits."""
+
+	max_shots: int = 10_000_000
+	max_circuits: int = 10_000
+	max_instructions_per_circuit: int = 100_000
+	max_queued_jobs: int = 100
+
+
+def validate_job_parameters(
+	num_qubits: int, depth: int, batches: int, shots: int, limits: ServerLimits | None = None
+) -> tuple[bool, str | None]:
+	"""Validate job parameters against server limits.
+
+	Args:
+		num_qubits: Number of qubits
+		depth: Circuit depth
+		batches: Number of circuits
+		shots: Number of shots
+		limits: Server limits (uses defaults if None)
+
+	Returns:
+		Tuple of (is_valid, error_message)
+	"""
+	if limits is None:
+		limits = ServerLimits()
+
+	# Check shots limit
+	if shots > limits.max_shots:
+		return False, f"Shots ({shots}) exceeds server limit ({limits.max_shots})"
+
+	# Check circuits limit
+	if batches > limits.max_circuits:
+		return False, f"Batches/circuits ({batches}) exceeds server limit ({limits.max_circuits})"
+
+	# Estimate instructions per circuit
+	# Random circuit with depth and num_qubits typically has:
+	# - depth layers of gates (each layer has ~1-2 gates per qubit)
+	# - measurements at the end (1 per qubit)
+	# Conservative estimate: depth * num_qubits * 2 + num_qubits
+	estimated_instructions = depth * num_qubits * 2 + num_qubits
+
+	if estimated_instructions > limits.max_instructions_per_circuit:
+		return (
+			False,
+			f"Estimated instructions (~{estimated_instructions}) may exceed server limit ({limits.max_instructions_per_circuit}). "
+			f"Consider reducing depth ({depth}) or qubits ({num_qubits}).",
+		)
+
+	return True, None
 
 
 def create_random_circuit(num_qubits: int, depth: int) -> QuantumCircuit:
@@ -28,7 +82,13 @@ def create_random_circuit(num_qubits: int, depth: int) -> QuantumCircuit:
 
 
 def run_single_experiment(
-	backend: Any, num_qubits: int, depth: int, batches: int, shots: int, timeout: float = 600.0
+	backend: Any,
+	num_qubits: int,
+	depth: int,
+	batches: int,
+	shots: int,
+	timeout: float = 600.0,
+	limits: ServerLimits | None = None,
 ) -> dict[str, Any]:
 	"""Run a single quantum experiment and measure execution time.
 

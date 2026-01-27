@@ -3,7 +3,7 @@
 import argparse
 import sys
 
-from resource_estimator.data_collection import collect_timing_data, connect_to_backend
+from resource_estimator.data_collection import ServerLimits, collect_timing_data, connect_to_backend
 from resource_estimator.logging_config import setup_logging
 from resource_estimator.utils import export_data_to_csv
 
@@ -28,6 +28,18 @@ def main():
 		type=str,
 		help="Path to checkpoint file for incremental saves and resume capability (default: <output>.checkpoint.csv)",
 	)
+	parser.add_argument(
+		"--max-shots", type=int, default=10_000_000, help="Maximum shots per job allowed by server (default: 10000000)"
+	)
+	parser.add_argument(
+		"--max-circuits", type=int, default=10_000, help="Maximum circuits per job allowed by server (default: 10000)"
+	)
+	parser.add_argument(
+		"--max-instructions",
+		type=int,
+		default=100_000,
+		help="Maximum instructions per circuit allowed by server (default: 100000)",
+	)
 	args = parser.parse_args()
 
 	try:
@@ -36,12 +48,18 @@ def main():
 		# Use provided checkpoint path or create default based on output file
 		checkpoint_path = args.checkpoint if args.checkpoint else f"{args.output}.checkpoint.csv"
 
+		# Configure server limits
+		limits = ServerLimits(
+			max_shots=args.max_shots, max_circuits=args.max_circuits, max_instructions_per_circuit=args.max_instructions
+		)
+
 		data = collect_timing_data(
 			backend=backend,
 			num_samples=args.samples,
 			include_isolated=not args.no_isolated,
 			job_timeout=args.job_timeout,
 			checkpoint_path=checkpoint_path,
+			limits=limits,
 		)
 
 		if not data:
