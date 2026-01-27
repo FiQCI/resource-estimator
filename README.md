@@ -33,6 +33,9 @@ uv pip install -e .
 # 3. Generate data from quantum hardware
 resource-estimator-generate --server-url <IQM_URL> --output data_analysis/data/device.csv
 
+# Optional: Use checkpoint for long-running data collection (auto-resumes if interrupted)
+resource-estimator-generate --server-url <IQM_URL> --output data.csv --checkpoint data.checkpoint.csv
+
 # 4. Build the model
 resource-estimator-build --data data_analysis/data/device.csv --device helmi
 
@@ -63,7 +66,7 @@ Data used in the resource estimation can be found in [`data_analysis/data/`](./d
 
 ## Model Details
 
-The resource estimator uses polynomial ridge regression models trained on real quantum hardware execution data. Each device has its own model parameters stored in [`src/utils/ResourceEstimatorModel.js`](./src/utils/ResourceEstimatorModel.js).
+The resource estimator uses a polynomial ridge regression models using data from running on the hardware. Each device has its own model parameters stored in [`src/utils/ResourceEstimatorModel.js`](./src/utils/ResourceEstimatorModel.js).
 
 **Model features:**
 - Number of qubits
@@ -71,16 +74,11 @@ The resource estimator uses polynomial ridge regression models trained on real q
 - Number of circuits (batches)
 - Number of shots (k_shots = shots/1000)
 
-**Model includes:**
-- Linear terms
-- Quadratic terms
-- Interaction terms between features
-
 ## Updating the Model
 
 When you need to update the model (e.g., after software or hardware changes):
 
-1. **Generate fresh data** using `resource-estimator-generate`
+1. **Generate fresh data** using `resource-estimator-generate` (with `--checkpoint` for reliability)
 2. **Build new model** using `resource-estimator-build`
 3. **Validate model** using `resource-estimator-validate`
 4. **Update frontend** by copying the JavaScript output into `src/utils/ResourceEstimatorModel.js`
