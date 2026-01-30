@@ -27,7 +27,7 @@ def trained_model(sample_data):
 	"""Create a trained model."""
 	X = sample_data[["qubits", "depth", "batches", "kshots"]]
 	y = sample_data["qpu_seconds"].values
-	model, poly, _ = train_polynomial_model(X, y, degree=2, alpha=0.01)
+	model, poly, _ = train_polynomial_model(X, y, degree=3, alpha=0.01)
 	return model, poly, X, y
 
 
