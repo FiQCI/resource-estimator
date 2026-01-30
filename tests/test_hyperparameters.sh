@@ -1,7 +1,7 @@
 #!/bin/bash
 # Test different model hyperparameters
 
-DATA="data_analysis/data/vtt-q50-28012026.csv"
+DATA="data_analysis/data/vtt-q50.csv"
 OUTPUT_DIR="plots/experiments"
 
 echo "Testing different model configurations..."

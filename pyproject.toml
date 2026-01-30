@@ -54,13 +54,16 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = [
-	"--strict-markers",
-	"--strict-config",
-	"--showlocals",
+	"-v",
 	"--cov=src/resource_estimator",
 	"--cov-report=term-missing",
 	"--cov-report=html",
 	"--cov-fail-under=80",
+]
+markers = [
+	"slow: marks tests as slow (deselect with '-m \"not slow\"')",
+	"integration: marks tests as integration tests",
+	"requires_node: marks tests that require Node.js (test_js_python_consistency)",
 ]
 
 [tool.coverage.run]

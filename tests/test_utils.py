@@ -1,8 +1,12 @@
 """Tests for utils module."""
 
-import pandas as pd
+import json
+from pathlib import Path
 
-from resource_estimator.utils import load_data_from_csv, export_data_to_csv, save_model_as_json
+import pandas as pd
+import pytest
+
+from resource_estimator.utils import load_data_from_csv, export_data_to_csv, save_model_as_json, update_javascript_model
 
 
 def test_export_and_load_data(tmp_path):
@@ -48,11 +52,53 @@ def test_save_model_as_json(tmp_path):
 
 	assert output_path.exists()
 
-	import json
-
 	with open(output_path) as f:
 		data = json.load(f)
 
 	assert data["intercept"] == 1.5
 	assert "qubits" in data["coefficients"]
 	assert data["metrics"]["r2_score"] == 0.95
+
+
+def test_update_javascript_model(tmp_path):
+	"""Test updating JavaScript model file."""
+	# Create sample JavaScript file
+	js_file = tmp_path / "model.js"
+	original_content = """const DEVICE_PARAMS = {
+	'test-device': {
+		name: 'Test',
+		intercept: 1.0,
+		terms: []
+	}
+};"""
+
+	js_file.write_text(original_content)
+
+	# New model configuration
+	new_config = """	'test-device': {
+		name: 'Test Updated',
+		intercept: 2.0,
+		terms: [
+			{type: 'single', variable: 'qubits', coefficient: 0.5}
+		]
+	}"""
+
+	# Update the file
+	update_javascript_model(js_file, "test-device", new_config)
+
+	# Verify update
+	updated_content = js_file.read_text()
+	assert "Test Updated" in updated_content
+	assert "intercept: 2.0" in updated_content
+	assert "qubits" in updated_content
+
+	# Verify backup was created
+	backup_file = Path(str(js_file) + ".bak")
+	assert backup_file.exists()
+	assert backup_file.read_text() == original_content
+
+
+def test_load_data_from_csv_missing_file():
+	"""Test loading from non-existent CSV."""
+	with pytest.raises((FileNotFoundError, pd.errors.EmptyDataError)):
+		load_data_from_csv("nonexistent_file_that_does_not_exist.csv")
