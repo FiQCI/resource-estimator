@@ -44,38 +44,63 @@ def prepare_training_data(data: list[dict] | pd.DataFrame) -> tuple[pd.DataFrame
 
 
 def train_polynomial_model(
-	X: pd.DataFrame, y: np.ndarray, degree: int = 2, alpha: float = 0.01
+	X: pd.DataFrame, y: np.ndarray, degree: int = 3, alpha: float = 0.01
 ) -> tuple[Ridge, PolynomialFeatures, dict]:
-	"""Train polynomial ridge regression model.
+	"""Train polynomial ridge regression model with log-transform.
+
+	Uses log-transform to ensure positive predictions and handle wide-range data.
 
 	Args:
 		X: Feature DataFrame
-		y: Target array
+		y: Target array (must be positive)
 		degree: Polynomial degree
 		alpha: Regularization strength
 
 	Returns:
 		Tuple of (trained model, polynomial transformer, metrics dict)
-	"""
-	logger.info(f"Training polynomial model (degree={degree}, alpha={alpha})")
 
-	# Create polynomial features
-	poly = PolynomialFeatures(degree=degree, include_bias=True)
+	Note:
+		The model trains on log(y) to guarantee positive predictions.
+		Use the returned predict function which handles exp() automatically.
+	"""
+	logger.info(f"Training polynomial model (degree={degree}, alpha={alpha}, log-transform=True)")
+
+	# Create polynomial features WITHOUT bias (Ridge has its own intercept)
+	poly = PolynomialFeatures(degree=degree, include_bias=False)
 	X_poly = poly.fit_transform(X)
 
-	# Train model
-	model = Ridge(alpha=alpha)
-	model.fit(X_poly, y)
+	# Train on log-transformed target for positive predictions
+	# Add small epsilon to avoid log(0) edge case
+	epsilon = 0.001
+	y_log = np.log(y + epsilon)
 
-	# Calculate metrics
-	y_pred = model.predict(X_poly)
+	model = Ridge(alpha=alpha, fit_intercept=True)
+	model.fit(X_poly, y_log)
+
+	# Make predictions (transform back to original space)
+	y_log_pred = model.predict(X_poly)
+	y_pred = np.exp(y_log_pred) - epsilon
+
+	# Calculate metrics in original space
 	metrics = {
 		"r2_score": r2_score(y, y_pred),
 		"rmse": np.sqrt(mean_squared_error(y, y_pred)),
 		"mae": np.mean(np.abs(y - y_pred)),
 	}
 
-	logger.info(f"Model R²: {metrics['r2_score']:.4f}, RMSE: {metrics['rmse']:.4f}")
+	# Validation checks
+	neg_count = (y_pred < 0).sum()
+	if neg_count > 0:
+		logger.warning(f"Model produces {neg_count} negative predictions! This should not happen with log-transform.")
+
+	mean_error_pct = np.mean(np.abs((y_pred - y) / y)) * 100
+	logger.info(
+		f"Model R²: {metrics['r2_score']:.4f}, RMSE: {metrics['rmse']:.4f}, "
+		f"MAE: {metrics['mae']:.4f}, Mean Error: {mean_error_pct:.1f}%"
+	)
+
+	# Store epsilon in model for predictions
+	model.epsilon_ = epsilon
 
 	return model, poly, metrics
 
@@ -106,13 +131,15 @@ def create_prediction_function(model: Ridge, poly: PolynomialFeatures, feature_n
 	"""Create a prediction function from trained model.
 
 	Args:
-		model: Trained model
+		model: Trained model (trained on log-transformed target)
 		poly: Polynomial transformer
 		feature_names: Feature names in order
 
 	Returns:
-		Prediction function
+		Prediction function that returns positive QPU seconds
 	"""
+	# Get epsilon from model if available (from log-transform training)
+	epsilon = getattr(model, "epsilon_", 0.001)
 
 	def predict(qubits: int, depth: int, batches: int, shots: int) -> float:
 		"""Predict QPU seconds.
@@ -124,25 +151,37 @@ def create_prediction_function(model: Ridge, poly: PolynomialFeatures, feature_n
 			shots: Number of shots
 
 		Returns:
-			Predicted QPU seconds
+			Predicted QPU seconds (always positive due to log-transform)
 		"""
-		features = np.array([[qubits, depth, batches, shots / 1000.0]])
+		# Create DataFrame with feature names to avoid sklearn warning
+		features = pd.DataFrame([[qubits, depth, batches, shots / 1000.0]], columns=feature_names)
 		features_poly = poly.transform(features)
-		return float(model.predict(features_poly)[0])
+		log_pred = model.predict(features_poly)[0]
+		# Transform back from log space
+		pred = np.exp(log_pred) - epsilon
+		# Ensure positive (should always be true with log-transform)
+		return max(0.0, float(pred))
 
 	return predict
 
 
-def format_javascript_model(coefficients: dict[str, float], device_name: str, device_id: str) -> str:
+def format_javascript_model(
+	coefficients: dict[str, float], device_name: str, device_id: str, epsilon: float = 0.001
+) -> str:
 	"""Format model as JavaScript code for frontend.
 
 	Args:
-		coefficients: Model coefficients
+		coefficients: Model coefficients (in log-space)
 		device_name: Display name
 		device_id: Device identifier
+		epsilon: Epsilon value used in log-transform (default: 0.001)
 
 	Returns:
 		JavaScript code string
+
+	Note:
+		The model is trained on log-transformed targets, so the frontend
+		must apply exp(prediction) - epsilon to get actual QPU seconds.
 	"""
 	intercept = coefficients.get("intercept", 0.0)
 	terms = []
@@ -163,6 +202,8 @@ def format_javascript_model(coefficients: dict[str, float], device_name: str, de
 	js_lines = [
 		f"\t'{device_id}': {{",
 		f"\t\tname: '{device_name}',",
+		"\t\tlogTransform: true,  // Model trained on log(y), must apply exp()",
+		f"\t\tepsilon: {epsilon:.6f},",
 		f"\t\tintercept: {intercept:.6f},",
 		"\t\tterms: [",
 	]
@@ -179,7 +220,8 @@ def format_javascript_model(coefficients: dict[str, float], device_name: str, de
 			)
 		elif term["type"] == "power":
 			js_lines.append(
-				f"\t\t\t{{type: 'power', variable: '{term['variable']}', coefficient: {term['coefficient']:.6f}, exponent: {term['exponent']}}},"
+				f"\t\t\t{{type: 'power', variable: '{term['variable']}', "
+				f"coefficient: {term['coefficient']:.6f}, exponent: {term['exponent']}}},"
 			)
 
 	js_lines.extend(["\t\t]", "\t}"])

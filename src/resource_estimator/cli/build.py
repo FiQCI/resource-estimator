@@ -22,7 +22,7 @@ def main():
 	parser.add_argument("--device", type=str, required=True, help="Device identifier (e.g., 'helmi')")
 	parser.add_argument("--device-name", type=str, help="Display name (defaults to device ID)")
 	parser.add_argument("--output-json", type=str, help="Output JSON file")
-	parser.add_argument("--degree", type=int, default=2, help="Polynomial degree (default: 2)")
+	parser.add_argument("--degree", type=int, default=3, help="Polynomial degree (default: 2)")
 	parser.add_argument("--alpha", type=float, default=0.01, help="Regularization strength (default: 0.01)")
 	parser.add_argument(
 		"--update-frontend",
@@ -43,9 +43,10 @@ def main():
 		feature_names = X.columns.tolist()
 		coefficients = extract_model_coefficients(model, poly, feature_names)
 
-		# Format JavaScript
+		# Format JavaScript (include epsilon from log-transform)
 		device_name = args.device_name or args.device.replace("-", " ").title()
-		js_code = format_javascript_model(coefficients, device_name, args.device)
+		epsilon = getattr(model, "epsilon_", 0.001)
+		js_code = format_javascript_model(coefficients, device_name, args.device, epsilon)
 
 		# Print results
 		logger.info("\nModel Metrics:")

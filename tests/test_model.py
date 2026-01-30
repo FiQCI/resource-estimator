@@ -41,7 +41,7 @@ def test_prepare_training_data(sample_data):
 def test_train_polynomial_model(sample_data):
 	"""Test model training."""
 	X, y = prepare_training_data(sample_data)
-	model, poly, metrics = train_polynomial_model(X, y, degree=2, alpha=0.01)
+	model, poly, metrics = train_polynomial_model(X, y, degree=3, alpha=0.01)
 
 	assert model is not None
 	assert poly is not None
@@ -54,7 +54,7 @@ def test_train_polynomial_model(sample_data):
 def test_extract_model_coefficients(sample_data):
 	"""Test coefficient extraction."""
 	X, y = prepare_training_data(sample_data)
-	model, poly, _ = train_polynomial_model(X, y, degree=2, alpha=0.01)
+	model, poly, _ = train_polynomial_model(X, y, degree=3, alpha=0.01)
 
 	feature_names = X.columns.tolist()
 	coefficients = extract_model_coefficients(model, poly, feature_names)
@@ -67,7 +67,7 @@ def test_extract_model_coefficients(sample_data):
 def test_create_prediction_function(sample_data):
 	"""Test prediction function creation."""
 	X, y = prepare_training_data(sample_data)
-	model, poly, _ = train_polynomial_model(X, y, degree=2, alpha=0.01)
+	model, poly, _ = train_polynomial_model(X, y, degree=3, alpha=0.01)
 
 	feature_names = X.columns.tolist()
 	predict = create_prediction_function(model, poly, feature_names)
