@@ -1,42 +1,19 @@
 """Data collection module for quantum resource estimation."""
 
 import logging
-import os
+import time
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-import psutil
 from iqm.qiskit_iqm import IQMProvider
 from qiskit import QuantumCircuit, transpile
 from qiskit.circuit.random import random_circuit
+from qiskit.providers import JobStatus
 from scipy.stats import qmc
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
-
-
-def log_memory_usage(label: str = ""):
-	"""Log current memory usage for debugging.
-
-	Args:
-		label: Optional label to identify the logging point
-	"""
-	try:
-		process = psutil.Process(os.getpid())
-		mem_info = process.memory_info()
-		mem_mb = mem_info.rss / 1024 / 1024
-		vm_mb = mem_info.vms / 1024 / 1024  # Virtual memory
-		logger.info(f"[MEM DEBUG {label}] RSS: {mem_mb:.1f} MB, VMS: {vm_mb:.1f} MB")
-
-		# Warn if memory is high
-		if mem_mb > 2000:
-			logger.warning(f"[MEM WARNING] High memory usage: {mem_mb:.1f} MB")
-
-		return mem_mb
-	except Exception as e:
-		logger.debug(f"Could not get memory info: {e}")
-		return None
 
 
 @dataclass
@@ -98,6 +75,63 @@ def validate_job_parameters(
 	return True, None
 
 
+def wait_for_job_completion(job: Any, timeout: float = 1800.0, poll_interval: float = 5.0) -> Any:
+	"""Wait for a job to complete by polling its status.
+
+	This is more robust than job.result(timeout) because it allows jobs to remain
+	queued beyond the timeout without failing. We poll the job status periodically
+	and only fail if the job reaches an error/cancelled state.
+
+	Args:
+		job: The quantum job to wait for
+		timeout: Maximum time to wait in seconds (default: 1800s = 30 min)
+		poll_interval: Time between status checks in seconds (default: 5s)
+
+	Returns:
+		Job result if successful
+
+	Raises:
+		RuntimeError: If job fails, is cancelled, or times out
+	"""
+	start_time = time.time()
+	last_status = None
+	status_change_count = 0
+
+	while True:
+		current_status = job.status()
+		elapsed = time.time() - start_time
+
+		# Log status changes
+		if current_status != last_status:
+			status_change_count += 1
+			logger.info(
+				f"Job {job.job_id()} status: {current_status} (elapsed: {elapsed:.1f}s, change #{status_change_count})"
+			)
+			last_status = current_status
+
+		# Check for terminal statuses
+		if current_status == JobStatus.DONE:
+			logger.info(f"Job {job.job_id()} completed successfully after {elapsed:.1f}s")
+			return job.result()
+
+		if current_status == JobStatus.ERROR:
+			raise RuntimeError(f"Job {job.job_id()} failed with error status after {elapsed:.1f}s")
+
+		if current_status == JobStatus.CANCELLED:
+			raise RuntimeError(f"Job {job.job_id()} was cancelled after {elapsed:.1f}s")
+
+		# Check timeout
+		if elapsed > timeout:
+			raise RuntimeError(
+				f"Job {job.job_id()} timed out after {timeout:.1f}s. "
+				f"Last status: {current_status}. "
+				f"Job may still be queued on backend - consider increasing timeout or checking backend queue."
+			)
+
+		# Wait before next poll
+		time.sleep(poll_interval)
+
+
 def create_random_circuit(num_qubits: int, depth: int) -> QuantumCircuit:
 	"""Create a random quantum circuit for timing measurements.
 
@@ -118,10 +152,13 @@ def run_single_experiment(
 	depth: int,
 	batches: int,
 	shots: int,
-	timeout: float = 600.0,
+	timeout: float = 1800.0,
 	limits: ServerLimits | None = None,
 ) -> dict[str, Any]:
 	"""Run a single quantum experiment and measure execution time.
+
+	This function now uses status polling instead of blocking timeout, which allows
+	jobs to remain queued on the backend without timing out prematurely.
 
 	Args:
 		backend: Quantum backend
@@ -129,7 +166,8 @@ def run_single_experiment(
 		depth: Circuit depth
 		batches: Number of circuits in batch
 		shots: Number of measurement shots
-		timeout: Job timeout in seconds
+		timeout: Maximum time to wait for job completion in seconds (default: 1800s = 30 min).
+		         This includes both queue time and execution time.
 		limits: Server limits for validation (uses defaults if None)
 
 	Returns:
@@ -150,24 +188,19 @@ def run_single_experiment(
 		if not is_valid:
 			raise ValueError(f"Parameter validation failed: {error_msg}")
 
-		# Log memory before circuit generation
-		log_memory_usage(f"before circuits q={num_qubits} d={depth} b={batches}")
-
 		# Generate random circuits
 		circuits = [create_random_circuit(num_qubits, depth) for _ in range(batches)]
-
-		log_memory_usage(f"after {batches} circuits generated")
 
 		# Transpile for backend
 		transpiled = transpile(circuits, backend=backend)
 
-		log_memory_usage(f"after transpilation")
-
 		# Run job
 		job = backend.run(transpiled, shots=shots)
-		result = job.result(timeout=timeout)
+		job_id = job.job_id()
+		logger.info(f"Submitted job {job_id} (qubits={num_qubits}, depth={depth}, batches={batches}, shots={shots})")
 
-		log_memory_usage(f"after job completion")
+		# Wait for job completion using status polling (more robust than blocking timeout)
+		result = wait_for_job_completion(job, timeout=timeout, poll_interval=5.0)
 
 		# Extract timing from result.timeline (iqm-client>=33.0.2)
 		exec_start = next(e for e in result.timeline if e.status == "execution_started")
@@ -333,7 +366,7 @@ def collect_timing_data(
 	backend: Any,
 	num_samples: int = 50,
 	include_isolated: bool = True,
-	job_timeout: float = 900.0,
+	job_timeout: float = 1800.0,
 	checkpoint_path: str | None = None,
 	limits: ServerLimits | None = None,
 ) -> list[dict[str, Any]]:
@@ -343,7 +376,8 @@ def collect_timing_data(
 		backend: Quantum backend
 		num_samples: Number of comprehensive samples
 		include_isolated: Include isolated parameter sweeps
-		job_timeout: Timeout for individual job completion in seconds (default: 900.0 from iqm-client)
+		job_timeout: Timeout for individual job completion in seconds (default: 1800s = 30 min).
+		             Increased from 900s to better handle backend queue delays.
 		checkpoint_path: Path to checkpoint file for saving/resuming data collection
 		limits: Server limits for validation (uses defaults if None)
 
@@ -392,16 +426,11 @@ def collect_timing_data(
 
 	# Skip already collected samples when resuming
 	skipped = 0
-	log_memory_usage("before sampling loop")
 
 	for idx, params in enumerate(tqdm(samples, desc="Comprehensive sampling")):
 		if checkpoint_path and _is_already_collected(params, all_data):
 			skipped += 1
 			continue
-
-		# Log memory every 10 experiments
-		if idx % 10 == 0:
-			log_memory_usage(f"iteration {idx}")
 
 		result = run_single_experiment(
 			backend, params["qubits"], params["depth"], params["batches"], params["shots"], job_timeout, limits
