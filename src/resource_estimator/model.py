@@ -232,31 +232,46 @@ def format_javascript_model(
 def _parse_coefficient_term(term_name: str, coefficient: float) -> dict | None:
 	"""Parse a coefficient term name into structured format.
 
+	Supports only degree-2 terms for JavaScript compatibility:
+	- Single: qubits, depth, batches, kshots
+	- Power: qubits^2, depth^2, etc.
+	- Interaction: qubits depth, qubits batches, etc.
+
+	Higher-order terms (degree-3+) are silently skipped.
+
 	Args:
 		term_name: Term name from sklearn
 		coefficient: Coefficient value
 
 	Returns:
-		Parsed term dictionary or None
+		Parsed term dictionary or None if term cannot be represented
 	"""
 	term_name = term_name.replace("k_shots", "kshots")
 
-	# Power terms: var^n or var**n
-	if "^" in term_name or "**" in term_name:
+	# Check for higher-order terms (e.g., "qubits^2 depth", "qubits depth batches")
+	# These cannot be represented in JavaScript model - skip them
+	if " " in term_name and ("^" in term_name or "**" in term_name):
+		# This is a mixed term like "qubits^2 depth" - skip
+		return None
+
+	# Power terms: var^n or var**n (only if no spaces, i.e., pure power)
+	if ("^" in term_name or "**" in term_name) and " " not in term_name:
 		parts = term_name.replace("**", "^").split("^")
 		if len(parts) == 2:
-			return {
-				"type": "power",
-				"variable": parts[0].strip(),
-				"coefficient": coefficient,
-				"exponent": int(parts[1]),
-			}
+			try:
+				exponent = int(parts[1].strip())
+				return {"type": "power", "variable": parts[0].strip(), "coefficient": coefficient, "exponent": exponent}
+			except ValueError:
+				# Can't parse exponent - skip this term
+				return None
 
-	# Interaction terms: var1 var2
-	if " " in term_name:
+	# Interaction terms: var1 var2 (exactly 2 variables, no powers)
+	if " " in term_name and "^" not in term_name and "**" not in term_name:
 		variables = [v.strip() for v in term_name.split()]
 		if len(variables) == 2:
 			return {"type": "interaction", "variables": variables, "coefficient": coefficient}
+		# More than 2 variables - skip (e.g., "qubits depth batches")
+		return None
 
 	# Single variable terms
 	if term_name in ["qubits", "depth", "batches", "kshots"]:
