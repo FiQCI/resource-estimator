@@ -1,10 +1,12 @@
 """Data collection module for quantum resource estimation."""
 
 import logging
+import os
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import psutil
 from iqm.qiskit_iqm import IQMProvider
 from qiskit import QuantumCircuit, transpile
 from qiskit.circuit.random import random_circuit
@@ -12,6 +14,29 @@ from scipy.stats import qmc
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
+
+
+def log_memory_usage(label: str = ""):
+	"""Log current memory usage for debugging.
+
+	Args:
+		label: Optional label to identify the logging point
+	"""
+	try:
+		process = psutil.Process(os.getpid())
+		mem_info = process.memory_info()
+		mem_mb = mem_info.rss / 1024 / 1024
+		vm_mb = mem_info.vms / 1024 / 1024  # Virtual memory
+		logger.info(f"[MEM DEBUG {label}] RSS: {mem_mb:.1f} MB, VMS: {vm_mb:.1f} MB")
+
+		# Warn if memory is high
+		if mem_mb > 2000:
+			logger.warning(f"[MEM WARNING] High memory usage: {mem_mb:.1f} MB")
+
+		return mem_mb
+	except Exception as e:
+		logger.debug(f"Could not get memory info: {e}")
+		return None
 
 
 @dataclass
@@ -63,6 +88,12 @@ def validate_job_parameters(
 			f"Estimated instructions (~{estimated_instructions}) may exceed server limit ({limits.max_instructions_per_circuit}). "
 			f"Consider reducing depth ({depth}) or qubits ({num_qubits}).",
 		)
+
+	# Note: We don't validate payload size in MB because:
+	# 1. Server doesn't specify this limit in its API
+	# 2. The limit varies and we don't want to reject valid combinations
+	# 3. If payload is too large, server returns error which we catch and log
+	# The error handler in run_single_experiment() provides detailed logging for payload errors
 
 	return True, None
 
@@ -119,15 +150,24 @@ def run_single_experiment(
 		if not is_valid:
 			raise ValueError(f"Parameter validation failed: {error_msg}")
 
+		# Log memory before circuit generation
+		log_memory_usage(f"before circuits q={num_qubits} d={depth} b={batches}")
+
 		# Generate random circuits
 		circuits = [create_random_circuit(num_qubits, depth) for _ in range(batches)]
+
+		log_memory_usage(f"after {batches} circuits generated")
 
 		# Transpile for backend
 		transpiled = transpile(circuits, backend=backend)
 
+		log_memory_usage(f"after transpilation")
+
 		# Run job
 		job = backend.run(transpiled, shots=shots)
 		result = job.result(timeout=timeout)
+
+		log_memory_usage(f"after job completion")
 
 		# Extract timing from result.timeline (iqm-client>=33.0.2)
 		exec_start = next(e for e in result.timeline if e.status == "execution_started")
@@ -138,7 +178,27 @@ def run_single_experiment(
 		return result_template
 
 	except Exception as e:
-		logger.warning(f"Experiment failed: {e}", exc_info=True)
+		# Log detailed parameters when experiment fails
+		error_msg = str(e)
+		logger.warning(
+			f"Experiment failed: {error_msg}\n"
+			f"  Parameters: qubits={num_qubits}, depth={depth}, batches={batches}, shots={shots}\n"
+			f"  Estimated instructions: {num_qubits * depth * 10}\n"
+			f"  Total instructions: {batches * num_qubits * depth * 10}",
+			exc_info=True,
+		)
+
+		# Special handling for payload size errors
+		if "payload" in error_msg.lower() or "too large" in error_msg.lower():
+			logger.error(
+				f"❌ PAYLOAD TOO LARGE ERROR:\n"
+				f"   Circuit: {num_qubits} qubits × {depth} depth = ~{num_qubits * depth * 10} instructions/circuit\n"
+				f"   Batch: {batches} circuits\n"
+				f"   Total: ~{batches * num_qubits * depth * 10} instructions in batch\n"
+				f"   Shots: {shots}\n"
+				f"   This combination exceeds server payload limits!"
+			)
+
 		result_template["error"] = str(e)
 		return result_template
 
@@ -332,10 +392,16 @@ def collect_timing_data(
 
 	# Skip already collected samples when resuming
 	skipped = 0
-	for params in tqdm(samples, desc="Comprehensive sampling"):
+	log_memory_usage("before sampling loop")
+
+	for idx, params in enumerate(tqdm(samples, desc="Comprehensive sampling")):
 		if checkpoint_path and _is_already_collected(params, all_data):
 			skipped += 1
 			continue
+
+		# Log memory every 10 experiments
+		if idx % 10 == 0:
+			log_memory_usage(f"iteration {idx}")
 
 		result = run_single_experiment(
 			backend, params["qubits"], params["depth"], params["batches"], params["shots"], job_timeout, limits
@@ -343,10 +409,12 @@ def collect_timing_data(
 
 		if result["error"] is None and result["qpu_seconds"] is not None:
 			all_data.append(result)
+			logger.info(f"✓ Collected sample {len(all_data)}/{num_samples}: qpu_seconds={result['qpu_seconds']:.2f}s")
 
 			# Save checkpoint after each successful experiment
 			if checkpoint_path:
 				_save_checkpoint(all_data, checkpoint_path)
+				logger.debug(f"Checkpoint saved: {len(all_data)} samples")
 
 	if checkpoint_path and skipped > 0:
 		logger.info(f"Skipped {skipped} already-collected samples")
