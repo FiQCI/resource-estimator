@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, update-resource-estimator ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install Python dependencies
+      run: |
+        uv sync
+
+    - name: Run tests with coverage
+      run: |
+        uv run pytest tests/ \
+          --cov=src/resource_estimator \
+          --cov-report=term-missing \
+          --cov-report=html \
+          --cov-fail-under=80 \
+          -v
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      if: always()
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+
+    - name: Upload coverage HTML
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-report
+        path: htmlcov/
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run ruff check
+      run: uv run ruff check src/ tests/
+
+    - name: Run ruff format check
+      run: uv run ruff format --check src/ tests/
