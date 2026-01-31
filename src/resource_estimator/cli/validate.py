@@ -286,6 +286,11 @@ def main():
 	parser.add_argument("--degree", type=int, default=3, help="Polynomial degree (default: 3)")
 	parser.add_argument("--alpha", type=float, default=0.01, help="Regularization strength (default: 0.01)")
 	parser.add_argument(
+		"--no-log-transform",
+		action="store_true",
+		help="Disable log-transform (use simple polynomial regression instead)",
+	)
+	parser.add_argument(
 		"--max-error", type=float, default=50.0, help="Maximum allowed mean error percentage (default: 50%%)"
 	)
 	parser.add_argument("--max-negative", type=int, default=0, help="Maximum allowed negative predictions (default: 0)")
@@ -300,7 +305,10 @@ def main():
 
 		# Prepare training data and train model
 		X, y = prepare_training_data(data)
-		model, poly, metrics = train_polynomial_model(X, y, args.degree, args.alpha)
+		use_log_transform = not args.no_log_transform
+		model, poly, metrics = train_polynomial_model(
+			X, y, args.degree, args.alpha, use_log_transform=use_log_transform
+		)
 
 		# Create prediction function
 		feature_names = X.columns.tolist()

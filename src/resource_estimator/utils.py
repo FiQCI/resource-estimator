@@ -146,7 +146,7 @@ def update_javascript_model(js_file_path: str | Path, device_id: str, js_device_
 	if existing_device:
 		# Replace existing device configuration
 		logger.info(f"Replacing existing configuration for device '{device_id}'")
-		start_pos, end_pos, old_config = existing_device
+		start_pos, end_pos, _old_config = existing_device
 		new_device_params_content = (
 			device_params_content[:start_pos] + js_device_config.strip() + device_params_content[end_pos:]
 		)
