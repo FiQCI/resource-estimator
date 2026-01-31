@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ main, update-resource-estimator ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
