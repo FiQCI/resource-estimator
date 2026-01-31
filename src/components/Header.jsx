@@ -31,9 +31,9 @@ const Header = ({ onOpenDocumentation }) => {
 		<header style={headerStyle}>
 			<div style={containerStyle}>
 				<div style={{ display: 'flex', alignItems: 'center' }}>
-					<img 
-						src={fiqciLogo} 
-						alt="FiQCI Logo" 
+					<img
+						src={fiqciLogo}
+						alt="FiQCI Logo"
 						style={{height: '2.5rem'}}
 					/>
 				</div>

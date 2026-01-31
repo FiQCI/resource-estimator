@@ -46,7 +46,7 @@ class JobHistoryManager {
 			id: Date.now(), // Use timestamp as unique ID
 			timestamp: new Date().toISOString()
 		};
-		
+
 		const updatedHistory = [newEstimation, ...history];
 		this.saveHistory(updatedHistory);
 		return updatedHistory;

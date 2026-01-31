@@ -27,100 +27,73 @@ const DEVICE_PARAMS = {
 	},
 	'vtt-q50': {
 		name: 'VTT Q50',
-		intercept: 3.687455,
+		// Model: Log-transform (captures multiplicative structure)
+		logTransform: true,  // Model trained on log(y), must apply exp()
+		epsilon: 0.001000,
+		intercept: -0.530624,
 		terms: [
-			{type: 'interaction', variables: ['batches', 'kshots'], coefficient: 0.411647},
-			{type: 'single', variable: 'batches', coefficient: -0.039480},
-			{type: 'single', variable: 'kshots', coefficient: -0.023972},
-			{type: 'single', variable: 'depth', coefficient: -0.015355},
-			{type: 'single', variable: 'qubits', coefficient: -0.012479},
-			{type: 'interaction', variables: ['qubits', 'batches'], coefficient: 0.006657},
-			{type: 'interaction', variables: ['depth', 'batches'], coefficient: -0.000807},
-			{type: 'power', variable: 'batches', coefficient: 0.000738, exponent: 2},
-			{type: 'interaction', variables: ['qubits', 'kshots'], coefficient: 0.000660},
-			{type: 'power', variable: 'kshots', coefficient: 0.000327, exponent: 2},
-			{type: 'interaction', variables: ['depth', 'kshots'], coefficient: 0.000319},
-			{type: 'power', variable: 'qubits', coefficient: 0.000241, exponent: 2},
-			{type: 'power', variable: 'depth', coefficient: 0.000157, exponent: 2},
-			{type: 'interaction', variables: ['qubits', 'depth'], coefficient: -0.000042}
+			{type: 'single', variable: 'batches', coefficient: 0.364118},
+			{type: 'single', variable: 'kshots', coefficient: 0.221175},
+			{type: 'single', variable: 'qubits', coefficient: 0.030281},
+			{type: 'power', variable: 'batches', coefficient: -0.022111, exponent: 2},
+			{type: 'single', variable: 'depth', coefficient: 0.018947},
+			{type: 'power', variable: 'kshots', coefficient: -0.006228, exponent: 2},
+			{type: 'interaction', variables: ['batches', 'kshots'], coefficient: 0.001824},
+			{type: 'interaction', variables: ['qubits', 'batches'], coefficient: 0.001082},
+			{type: 'power', variable: 'qubits', coefficient: -0.000932, exponent: 2},
+			{type: 'interaction', variables: ['depth', 'batches'], coefficient: 0.000913},
+			{type: 'power', variable: 'batches', coefficient: 0.000478, exponent: 3},
+			{type: 'power', variable: 'depth', coefficient: -0.000389, exponent: 2},
+			{type: 'interaction', variables: ['qubits', 'depth'], coefficient: -0.000193},
+			{type: 'interaction', variables: ['depth', 'kshots'], coefficient: -0.000127},
+			{type: 'interaction', variables: ['qubits', 'kshots'], coefficient: -0.000065},
+			{type: 'power', variable: 'kshots', coefficient: 0.000061, exponent: 3},
+			{type: 'power', variable: 'qubits', coefficient: 0.000009, exponent: 3},
+			{type: 'power', variable: 'depth', coefficient: 0.000002, exponent: 3},
 		]
-	}
+	},
 };
 
 /**
  * Calculate the contribution of a single term in the model.
- * 
+ *
  * @param {Object} term - Term configuration object
  * @param {Object} params - Normalized input parameters
  * @returns {number} Term contribution to the result
  */
 function calculateTerm(term, params) {
 	const termType = term.type;
-	
+
 	if (termType === 'single') {
 		return term.coefficient * params[term.variable];
-		
+
 	} else if (termType === 'interaction') {
 		const [var1, var2] = term.variables;
 		return term.coefficient * params[var1] * params[var2];
-		
+
 	} else if (termType === 'power') {
 		return term.coefficient * Math.pow(params[term.variable], term.exponent);
 	}
-	
+
 	return 0.0;
 }
 
 /**
- * Safely calculate the depth term contribution, preventing negative scaling issues.
- * 
- * @param {Object} deviceConfig - Device configuration
- * @param {Object} params - Normalized input parameters
- * @returns {number} Depth term contribution (with safety checks)
- */
-function calculateDepthTerm(deviceConfig, params) {
-	// Find the depth term
-	const depthTerm = deviceConfig.terms.find(
-		term => term.type === 'single' && term.variable === 'depth'
-	);
-	
-	if (!depthTerm) {
-		return 0.0;
-	}
-	
-	// If depth coefficient is negative, we need to handle it specially
-	if (depthTerm.coefficient < 0) {
-		// Set a reasonable maximum effect the depth can have
-		// This prevents very large depths from unrealistically reducing the runtime
-		const maxDepthEffect = Math.abs(depthTerm.coefficient) * 100; // Assume 100 is a reasonable depth cap
-		
-		// Calculate actual depth effect
-		const actualDepthEffect = depthTerm.coefficient * params.depth;
-		
-		// Limit the negative effect to the maximum
-		return Math.max(actualDepthEffect, -maxDepthEffect);
-	} else {
-		// For positive coefficients, calculate normally
-		return depthTerm.coefficient * params.depth;
-	}
-}
-
-/**
  * Calculate QPU seconds based on the device model and input parameters.
- * 
+ *
  * @param {string} device - Device identifier ('helmi' or 'vtt-q50')
  * @param {Object} params - Dictionary with keys 'batches', 'depth', 'shots', and 'qubits'
- * @returns {number} Estimated QPU seconds
+ * @returns {number} Estimated QPU seconds (always positive)
  */
 function calculateQPUSeconds(device, params) {
 	if (!DEVICE_PARAMS[device]) {
 		console.error(`Unknown device: ${device}`);
 		return 0;
 	}
-	
+
 	// Get device configuration
 	const deviceConfig = DEVICE_PARAMS[device];
-	
+
 	// Create a normalized parameters dict with kshots
 	const normParams = {
 		batches: parseInt(params.batches, 10) || 1,
@@ -129,28 +102,25 @@ function calculateQPUSeconds(device, params) {
 		qubits: parseInt(params.qubits, 10) || 2,
 		kshots: (parseInt(params.shots, 10) || 1000) / 1000 // Convert shots to kshots
 	};
-	
-	// Handle depth parameter to avoid negative scaling
-	const depthTerm = calculateDepthTerm(deviceConfig, normParams);
-	
+
 	// Start with the intercept
 	let result = deviceConfig.intercept;
-	
+
 	// Add contribution from each term
 	for (const term of deviceConfig.terms) {
-		// Skip the depth term as we handle it separately
-		if (term.type === 'single' && term.variable === 'depth') {
-			continue;
-		}
-		
 		const termValue = calculateTerm(term, normParams);
 		result += termValue;
 	}
-	
-	// Add the safely calculated depth term
-	result += depthTerm;
-	
-	
+
+	// If model uses log-transform, apply exp() to get back to original space
+	if (deviceConfig.logTransform) {
+		const epsilon = deviceConfig.epsilon || 0.001;
+		result = Math.exp(result) - epsilon;
+	}
+
+	// Ensure positive result
+	result = Math.max(0.0, result);
+
 	// Return rounded to 2 decimal places
 	return parseFloat(result.toFixed(2));
 }

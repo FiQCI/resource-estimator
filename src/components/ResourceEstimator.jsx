@@ -77,17 +77,17 @@ const ResourceEstimator = () => {
 		shots: 1000,
 		qubits: 5
 	});
-	
+
 	const [estimatedQPU, setEstimatedQPU] = useState(null);
 	const [history, setHistory] = useState([]);
 	const [basket, setBasket] = useState([]);
-	
+
 	// Load history and basket from localStorage on component mount
 	useEffect(() => {
 		setHistory(JobHistoryManager.loadHistory());
 		setBasket(JobHistoryManager.loadBasket());
 	}, []);
-	
+
 	const handleInputChange = (field, value) => {
 		console.log(`Updating ${field} to ${value}`);
 		setFormData(prevState => ({
@@ -95,19 +95,19 @@ const ResourceEstimator = () => {
 			[field]: value
 		}));
 	};
-	
+
 	const calculateQPU = () => {
 		// Validate all inputs are present before calculating
 		const requiredFields = ['batches', 'depth', 'shots', 'qubits'];
-		const missingFields = requiredFields.filter(field => 
+		const missingFields = requiredFields.filter(field =>
 			formData[field] === '' || formData[field] === undefined || formData[field] === null
 		);
-		
+
 		if (missingFields.length > 0) {
 			alert('Please fill in all parameter fields before calculating.');
 			return;
 		}
-		
+
 		// Convert any string values to numbers
 		const numericFormData = {
 			batches: parseInt(formData.batches, 10),
@@ -115,11 +115,11 @@ const ResourceEstimator = () => {
 			shots: parseInt(formData.shots, 10),
 			qubits: parseInt(formData.qubits, 10)
 		};
-		
+
 		// Calculate QPU seconds using our model
 		const qpuSeconds = calculateQPUSeconds(selectedDevice, numericFormData);
 		setEstimatedQPU(qpuSeconds);
-		
+
 		// Create estimation object
 		const estimation = {
 			device: selectedDevice,
@@ -127,30 +127,30 @@ const ResourceEstimator = () => {
 			params: { ...numericFormData },
 			qpuSeconds: qpuSeconds,
 		};
-		
+
 		// Add to history and update state
 		const updatedHistory = JobHistoryManager.addToHistory(estimation);
 		setHistory(updatedHistory);
 	};
-	
+
 	// Add an estimation to the basket
 	const handleAddToBasket = (estimation) => {
 		const updatedBasket = JobHistoryManager.addToBasket(estimation);
 		setBasket(updatedBasket);
 	};
-	
+
 	// Remove an estimation from the basket
 	const handleRemoveFromBasket = (index) => {
 		const updatedBasket = JobHistoryManager.removeFromBasket(index);
 		setBasket(updatedBasket);
 	};
-	
+
 	// Clear the basket
 	const handleClearBasket = () => {
 		const emptyBasket = JobHistoryManager.clearBasket();
 		setBasket(emptyBasket);
 	};
-	
+
 	// Clear the history
 	const handleClearHistory = () => {
 		if (confirm('Are you sure you want to clear all estimation history?')) {
@@ -229,54 +229,54 @@ const ResourceEstimator = () => {
 		display: 'inline-block',
 		fontFamily: fontFamily
 	};
-	
+
 	return (
 		<div style={containerStyle}>
 			{/* Left column with estimator form */}
 			<div style={leftColumnStyle}>
-				<DeviceSelector 
-					selectedDevice={selectedDevice} 
-					onDeviceSelect={setSelectedDevice} 
+				<DeviceSelector
+					selectedDevice={selectedDevice}
+					onDeviceSelect={setSelectedDevice}
 				/>
-				
+
 				<div style={formContainerStyle}>
 					<h2 style={{
-						textAlign: 'center', 
+						textAlign: 'center',
 						fontSize: '1.5rem',
-						fontWeight: '500', 
-						color: '#333333', 
+						fontWeight: '500',
+						color: '#333333',
 						margin: '0 0 1rem 0',
 						fontFamily: fontFamily
 					}}>
 						Input Parameters
 					</h2>
-					
+
 					<div style={formInputsContainerStyle}>
-						<ParameterInput 
-							label="Circuits in Batch" 
-							value={formData.batches} 
-							onChange={(value) => handleInputChange('batches', value)} 
+						<ParameterInput
+							label="Circuits in Batch"
+							value={formData.batches}
+							onChange={(value) => handleInputChange('batches', value)}
 						/>
-						
-						<ParameterInput 
-							label="Circuit Depth (Gates)" 
-							value={formData.depth} 
-							onChange={(value) => handleInputChange('depth', value)} 
+
+						<ParameterInput
+							label="Circuit Depth (Gates)"
+							value={formData.depth}
+							onChange={(value) => handleInputChange('depth', value)}
 						/>
-						
-						<ParameterInput 
-							label="Shots per Circuit" 
-							value={formData.shots} 
-							onChange={(value) => handleInputChange('shots', value)} 
+
+						<ParameterInput
+							label="Shots per Circuit"
+							value={formData.shots}
+							onChange={(value) => handleInputChange('shots', value)}
 						/>
-						
-						<ParameterInput 
-							label="Number of Qubits" 
-							value={formData.qubits} 
-							onChange={(value) => handleInputChange('qubits', value)} 
+
+						<ParameterInput
+							label="Number of Qubits"
+							value={formData.qubits}
+							onChange={(value) => handleInputChange('qubits', value)}
 						/>
 					</div>
-					
+
 					<div style={{marginTop: '1rem', textAlign: 'center'}}>
 						<button
 							onClick={calculateQPU}
@@ -286,14 +286,14 @@ const ResourceEstimator = () => {
 						</button>
 					</div>
 				</div>
-				
+
 				{estimatedQPU !== null && (
 					<>
 						<div style={resultContainerStyle}>
 							<h2 style={{
 								fontSize: '1.5rem',
-								fontWeight: '500', 
-								color: '#333333', 
+								fontWeight: '500',
+								color: '#333333',
 								margin: '0 0 0.7rem 0',
 								fontFamily: fontFamily
 							}}>
@@ -302,7 +302,7 @@ const ResourceEstimator = () => {
 							<div style={resultValueStyle}>
 								<div style={{
 									fontSize: '1.05rem',
-									color: '#333333', 
+									color: '#333333',
 									marginBottom: '0.35rem',
 									fontFamily: fontFamily
 								}}>
@@ -310,7 +310,7 @@ const ResourceEstimator = () => {
 								</div>
 								<div style={{
 									fontSize: '2.1rem',
-									fontWeight: 'bold', 
+									fontWeight: 'bold',
 									color: '#333333',
 									fontFamily: fontFamily
 								}}>
@@ -318,7 +318,7 @@ const ResourceEstimator = () => {
 								</div>
 							</div>
 						</div>
-						
+
 						<div style={{textAlign: 'center', marginBottom: '1.05rem'}}>
 							<button
 								onClick={() => handleAddToBasket({
@@ -348,16 +348,16 @@ const ResourceEstimator = () => {
 					</>
 				)}
 			</div>
-			
+
 			{/* */}
 			<div style={rightColumnStyle}>
-				<BasketPanel 
+				<BasketPanel
 					basket={basket}
 					onRemoveFromBasket={handleRemoveFromBasket}
 					onClearBasket={handleClearBasket}
 				/>
-				
-				<HistoryPanel 
+
+				<HistoryPanel
 					history={history}
 					onAddToBasket={handleAddToBasket}
 					onClearHistory={handleClearHistory}

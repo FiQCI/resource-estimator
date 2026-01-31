@@ -5,7 +5,7 @@ const fontFamily = '-apple-system,BlinkMacSystemFont,"Roboto","Segoe UI","Helvet
 const BasketPanel = ({ basket, onRemoveFromBasket, onClearBasket }) => {
 	// Calculate total QPU seconds
 	const totalQPUSeconds = basket.reduce((total, item) => total + parseFloat(item.qpuSeconds), 0).toFixed(2);
-	
+
 	// Basket panel container styles
 	const containerStyle = {
 		backgroundColor: 'white',
@@ -86,7 +86,7 @@ const BasketPanel = ({ basket, onRemoveFromBasket, onClearBasket }) => {
 	return (
 		<div style={containerStyle}>
 			<h2 style={titleStyle}>Job Basket</h2>
-			
+
 			{basket.length === 0 ? (
 				<p style={{textAlign: 'center', color: '#333333'}}>No jobs in basket</p>
 			) : (
@@ -97,14 +97,14 @@ const BasketPanel = ({ basket, onRemoveFromBasket, onClearBasket }) => {
 								<h3 style={{fontSize: '1.1rem', fontWeight: '500', margin: '0'}}>
 									Job {index + 1} - {item.deviceName || 'Unknown Device'}
 								</h3>
-								<button 
+								<button
 									style={removeButtonStyle}
 									onClick={() => onRemoveFromBasket(index)}
 								>
 									Remove
 								</button>
 							</div>
-							
+
 							<div style={{display: 'flex', flexWrap: 'wrap', gap: '0.35rem', margin: '0.35rem 0', fontSize: '0.9rem'}}>
 								<span style={{...paramStyle, backgroundColor: '#e6f0ff', border: '1px solid #b8d0ff'}}>
 									Device: {item.deviceName}
@@ -119,7 +119,7 @@ const BasketPanel = ({ basket, onRemoveFromBasket, onClearBasket }) => {
 							</div>
 						</div>
 					))}
-					
+
 					<div style={totalContainerStyle}>
 						<div>
 							<div style={{
@@ -137,7 +137,7 @@ const BasketPanel = ({ basket, onRemoveFromBasket, onClearBasket }) => {
 								</div>
 							</div>
 						</div>
-						
+
 						<div>
 							<button
 								style={clearButtonStyle}

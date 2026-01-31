@@ -1,0 +1,97 @@
+[project]
+name = "resource-estimator"
+dynamic = ["version"]
+description = ""
+readme = "README.md"
+requires-python = ">=3.11, <3.12"
+license = {text = "MIT"}
+authors = [
+	{name = "FiQCI", email = "servicedesk@csc.fi"}
+]
+dependencies = [
+    "iqm-client[qiskit]==33.0.2",
+    "matplotlib==3.10.8",
+    "numpy==2.4.1",
+    "pandas==2.3.3",
+    "scikit-learn==1.8.0",
+    "scipy==1.15.3",
+    "tqdm==4.67.1",
+]
+
+[project.scripts]
+resource-estimator-generate = "resource_estimator.cli.generate:main"
+resource-estimator-build = "resource_estimator.cli.build:main"
+resource-estimator-validate = "resource_estimator.cli.validate:main"
+
+[build-system]
+requires = ["setuptools>=68.0.0", "setuptools_scm[toml]>=7"]
+build-backend = "setuptools.build_meta"
+
+
+[tool.setuptools_scm]
+# See configuration details in https://github.com/pypa/setuptools_scm
+version_scheme = "no-guess-dev"
+fallback_version = "0.1"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+target-version = "py311"
+
+[tool.ruff.lint]
+ignore = ["F405", "F541", "E501"]
+
+[tool.ruff.format]
+skip-magic-trailing-comma = true
+indent-style = "tab"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+	"-v",
+	"--cov=src/resource_estimator",
+	"--cov-report=term-missing",
+	"--cov-report=html",
+	"--cov-fail-under=80",
+]
+markers = [
+	"slow: marks tests as slow (deselect with '-m \"not slow\"')",
+	"integration: marks tests as integration tests",
+	"requires_node: marks tests that require Node.js (test_js_python_consistency)",
+]
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+	"*/tests/*",
+	"*/__pycache__/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+	"pragma: no cover",
+	"def __repr__",
+	"raise AssertionError",
+	"raise NotImplementedError",
+	"if __name__ == .__main__.:",
+	"if TYPE_CHECKING:",
+	"@abstractmethod",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.5.1",
+    "pytest==9.0.2",
+    "pytest-cov==7.0.0",
+    "ruff==0.14.13",
+]

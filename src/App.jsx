@@ -45,17 +45,17 @@ function App() {
 	return (
 		<div style={rootStyle}>
 			<Header onOpenDocumentation={openDocumentation} />
-			
+
 			<main style={mainStyle}>
 				<ResourceEstimator />
 			</main>
-			
+
 			{/* Documentation component */}
-			<Documentation 
-				isOpen={isDocumentationOpen} 
-				onClose={closeDocumentation} 
+			<Documentation
+				isOpen={isDocumentationOpen}
+				onClose={closeDocumentation}
 			/>
-			
+
 			<footer style={{
 				backgroundColor: '#2e52a5',
 				color: 'white',

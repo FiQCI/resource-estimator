@@ -80,7 +80,7 @@ const HistoryPanel = ({ history, onAddToBasket, onClearHistory }) => {
 		margin: '0.35rem 0',
 		fontSize: '0.9rem'
 	};
-	
+
 	// Parameter styles
 	const paramStyle = {
 		padding: '0.2rem 0.4rem',
@@ -109,7 +109,7 @@ const HistoryPanel = ({ history, onAddToBasket, onClearHistory }) => {
 			<div style={headerContainerStyle}>
 				<h2 style={titleStyle}>Estimation History</h2>
 				{history.length > 0 && (
-					<button 
+					<button
 						style={clearButtonStyle}
 						onClick={onClearHistory}
 					>
@@ -117,7 +117,7 @@ const HistoryPanel = ({ history, onAddToBasket, onClearHistory }) => {
 					</button>
 				)}
 			</div>
-			
+
 			{history.length === 0 ? (
 				<p style={{textAlign: 'center', color: '#333333'}}>No previous estimations</p>
 			) : (
@@ -131,7 +131,7 @@ const HistoryPanel = ({ history, onAddToBasket, onClearHistory }) => {
 								{formatTimestamp(item.timestamp)}
 							</span>
 						</div>
-						
+
 						<div style={paramsStyle}>
 							<span style={{...paramStyle, backgroundColor: '#e6f0ff', border: '1px solid #b8d0ff'}}>
 								Device: {item.deviceName}
@@ -141,7 +141,7 @@ const HistoryPanel = ({ history, onAddToBasket, onClearHistory }) => {
 							<span style={paramStyle}>Shots: {item.params.shots}</span>
 							<span style={paramStyle}>Qubits: {item.params.qubits}</span>
 						</div>
-						
+
 						<div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.7rem'}}>
 							<div style={{
 								backgroundColor: '#f0f7ff',
@@ -155,8 +155,8 @@ const HistoryPanel = ({ history, onAddToBasket, onClearHistory }) => {
 								<span style={{fontSize: '0.85rem', color: '#333333', marginRight: '0.35rem'}}>QPU Seconds:</span>
 								{item.qpuSeconds}
 							</div>
-							
-							<button 
+
+							<button
 								style={buttonStyle}
 								onClick={() => onAddToBasket(item)}
 							>
