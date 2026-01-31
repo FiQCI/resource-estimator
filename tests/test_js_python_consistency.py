@@ -11,36 +11,37 @@ from resource_estimator.utils import load_data_from_csv
 
 # Skip if production data doesn't exist
 pytestmark = pytest.mark.skipif(
-	not Path("data_analysis/data/vtt-q50.csv").exists(), reason="Production data file not found"
+	not Path("data_analysis/data/vtt-q50-combined-cleaned.csv").exists(), reason="Production data file not found"
 )
 
 
 @pytest.fixture
 def trained_model_deg3():
 	"""Create degree-3 trained model with production data."""
-	data = load_data_from_csv("data_analysis/data/vtt-q50.csv")
+	data = load_data_from_csv("data_analysis/data/vtt-q50-combined-cleaned.csv")
 	X, y = prepare_training_data(data)
-	model, poly, metrics = train_polynomial_model(X, y, degree=3, alpha=0.01)
+	model, poly, metrics = train_polynomial_model(X, y, degree=3, alpha=0.01, use_log_transform=True)
 	predict_fn = create_prediction_function(model, poly, X.columns.tolist())
 	return predict_fn
 
 
 def test_python_predictions_match_expected(trained_model_deg3):
-	"""Test that Python predictions match expected values for degree-3 model."""
+	"""Test that Python predictions match expected values for degree-3 log-transform model."""
 	predict_fn = trained_model_deg3
 
 	# Test cases: (qubits, depth, batches, shots, expected_prediction)
+	# Expected values generated from log-transform model on vtt-q50-combined-cleaned.csv
 	test_cases = [
-		(2, 5, 1, 1000, 1.22),
-		(2, 5, 3, 1000, 2.03),
-		(2, 5, 6, 1000, 3.56),
-		(6, 5, 1, 1000, 1.33),
+		(2, 5, 1, 1000, 1.19),
+		(2, 5, 3, 1000, 2.12),
+		(2, 5, 6, 1000, 3.90),
+		(6, 5, 1, 1000, 1.31),
 		(12, 5, 1, 1000, 1.44),
-		(2, 1, 1, 1000, 1.10),
-		(2, 12, 1, 1000, 1.41),
-		(2, 23, 1, 1000, 1.57),
-		(2, 5, 1, 6444, 3.22),
-		(2, 5, 1, 50000, 24.44),
+		(2, 1, 1, 1000, 1.11),
+		(2, 12, 1, 1000, 1.31),
+		(2, 23, 1, 1000, 1.42),
+		(2, 5, 1, 6444, 3.15),
+		(2, 5, 1, 50000, 22.18),
 	]
 
 	tolerance = 0.1  # 0.1 second tolerance

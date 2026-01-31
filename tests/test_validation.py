@@ -7,11 +7,8 @@ from unittest.mock import patch
 
 from resource_estimator.model import create_prediction_function, prepare_training_data, train_polynomial_model
 from resource_estimator.cli.validate import validate_model_predictions
-from resource_estimator.validation import (
-	validate_model_predictions as validate_old,
-	calculate_feature_importance,
-	generate_all_plots,
-)
+from resource_estimator.validation import validate_model_predictions as validate_old, calculate_feature_importance
+from test_helpers import generate_all_plots
 
 
 @pytest.fixture

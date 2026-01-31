@@ -111,7 +111,11 @@ def test_run_single_experiment_with_valid_parameters():
 
 	mock_result.timeline = [TimelineEntry("execution_started", start_time), TimelineEntry("execution_ended", end_time)]
 
+	from qiskit.providers import JobStatus
+
 	mock_job.result.return_value = mock_result
+	mock_job.status.return_value = JobStatus.DONE
+	mock_job.job_id.return_value = "test-job-123"
 	backend.run.return_value = mock_job
 
 	limits = ServerLimits()

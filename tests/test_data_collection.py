@@ -2,6 +2,7 @@
 
 import pytest
 from unittest.mock import Mock, patch
+from qiskit.providers import JobStatus
 
 from resource_estimator.data_collection import (
 	create_random_circuit,
@@ -61,6 +62,8 @@ def test_run_single_experiment_success(mock_transpile):
 
 	mock_job = Mock()
 	mock_job.result = Mock(return_value=mock_result)
+	mock_job.status = Mock(return_value=JobStatus.DONE)
+	mock_job.job_id = Mock(return_value="test-job-123")
 	backend.run.return_value = mock_job
 
 	# Mock transpile

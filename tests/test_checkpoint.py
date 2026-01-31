@@ -27,37 +27,40 @@ def test_save_and_load_checkpoint():
 		_save_checkpoint(data, str(checkpoint_path))
 		assert checkpoint_path.exists()
 
-		# Load checkpoint
-		loaded_data = _load_checkpoint(str(checkpoint_path))
+		# Load checkpoint (now returns tuple of (data, param_set))
+		loaded_data, param_set = _load_checkpoint(str(checkpoint_path))
 		assert len(loaded_data) == 2
 		assert loaded_data[0]["num_qubits"] == 2
 		assert loaded_data[1]["qpu_seconds"] == 2.5
+		assert len(param_set) == 2  # Check param_set was created
 
 
 def test_load_checkpoint_nonexistent():
 	"""Test loading checkpoint when file doesn't exist."""
-	data = _load_checkpoint("/nonexistent/path/checkpoint.csv")
+	data, param_set = _load_checkpoint("/nonexistent/path/checkpoint.csv")
 	assert data == []
+	assert param_set == set()
 
 
 def test_is_already_collected():
 	"""Test checking if parameters have been collected."""
-	collected_data = [
-		{"num_qubits": 2, "depth": 5, "batches": 1, "shots": 1000, "qpu_seconds": 1.5, "error": None},
-		{"num_qubits": 3, "depth": 10, "batches": 2, "shots": 2000, "qpu_seconds": 2.5, "error": None},
-	]
+	# Create param_set for fast lookup
+	param_set = {
+		(2, 5, 1, 1000),  # (qubits, depth, batches, shots)
+		(3, 10, 2, 2000),
+	}
 
 	# Test exact match
 	params = {"qubits": 2, "depth": 5, "batches": 1, "shots": 1000}
-	assert _is_already_collected(params, collected_data) is True
+	assert _is_already_collected(params, param_set) is True
 
 	# Test no match
 	params = {"qubits": 4, "depth": 5, "batches": 1, "shots": 1000}
-	assert _is_already_collected(params, collected_data) is False
+	assert _is_already_collected(params, param_set) is False
 
 	# Test partial match (should be False)
 	params = {"qubits": 2, "depth": 5, "batches": 2, "shots": 1000}  # Different batches
-	assert _is_already_collected(params, collected_data) is False
+	assert _is_already_collected(params, param_set) is False
 
 
 @patch("resource_estimator.data_collection.run_single_experiment")
@@ -85,7 +88,7 @@ def test_collect_timing_data_with_checkpoint(mock_run):
 		assert checkpoint_path.exists()
 
 		# Verify checkpoint has all successful data
-		loaded = _load_checkpoint(str(checkpoint_path))
+		loaded, param_set = _load_checkpoint(str(checkpoint_path))
 		assert len(loaded) == len(data)
 
 
