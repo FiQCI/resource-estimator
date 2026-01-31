@@ -44,42 +44,52 @@ def prepare_training_data(data: list[dict] | pd.DataFrame) -> tuple[pd.DataFrame
 
 
 def train_polynomial_model(
-	X: pd.DataFrame, y: np.ndarray, degree: int = 3, alpha: float = 0.01
+	X: pd.DataFrame, y: np.ndarray, degree: int = 3, alpha: float = 0.01, use_log_transform: bool = True
 ) -> tuple[Ridge, PolynomialFeatures, dict]:
-	"""Train polynomial ridge regression model with log-transform.
+	"""Train polynomial ridge regression model.
 
-	Uses log-transform to ensure positive predictions and handle wide-range data.
+	Can use log-transform for guaranteed positive predictions or simple polynomial regression.
 
 	Args:
 		X: Feature DataFrame
 		y: Target array (must be positive)
 		degree: Polynomial degree
 		alpha: Regularization strength
+		use_log_transform: If True, train on log(y) to ensure positive predictions (default: True)
 
 	Returns:
 		Tuple of (trained model, polynomial transformer, metrics dict)
 
 	Note:
-		The model trains on log(y) to guarantee positive predictions.
-		Use the returned predict function which handles exp() automatically.
+		With log-transform: Model trains on log(y) and guarantees positive predictions.
+		Without log-transform: Simple polynomial regression (may produce negative predictions).
 	"""
-	logger.info(f"Training polynomial model (degree={degree}, alpha={alpha}, log-transform=True)")
+	logger.info(f"Training polynomial model (degree={degree}, alpha={alpha}, log-transform={use_log_transform})")
 
 	# Create polynomial features WITHOUT bias (Ridge has its own intercept)
 	poly = PolynomialFeatures(degree=degree, include_bias=False)
 	X_poly = poly.fit_transform(X)
 
-	# Train on log-transformed target for positive predictions
-	# Add small epsilon to avoid log(0) edge case
-	epsilon = 0.001
-	y_log = np.log(y + epsilon)
-
 	model = Ridge(alpha=alpha, fit_intercept=True)
-	model.fit(X_poly, y_log)
 
-	# Make predictions (transform back to original space)
-	y_log_pred = model.predict(X_poly)
-	y_pred = np.exp(y_log_pred) - epsilon
+	if use_log_transform:
+		# Train on log-transformed target for positive predictions
+		# Add small epsilon to avoid log(0) edge case
+		epsilon = 0.001
+		y_log = np.log(y + epsilon)
+
+		model.fit(X_poly, y_log)
+
+		# Make predictions (transform back to original space)
+		y_log_pred = model.predict(X_poly)
+		y_pred = np.exp(y_log_pred) - epsilon
+
+		# Store epsilon in model for predictions
+		model.epsilon_ = epsilon
+	else:
+		# Simple polynomial regression (no transform)
+		model.fit(X_poly, y)
+		y_pred = model.predict(X_poly)
 
 	# Calculate metrics in original space
 	metrics = {
@@ -91,16 +101,20 @@ def train_polynomial_model(
 	# Validation checks
 	neg_count = (y_pred < 0).sum()
 	if neg_count > 0:
-		logger.warning(f"Model produces {neg_count} negative predictions! This should not happen with log-transform.")
+		if use_log_transform:
+			logger.warning(
+				f"Model produces {neg_count} negative predictions! This should not happen with log-transform."
+			)
+		else:
+			logger.warning(
+				f"Model produces {neg_count} negative predictions (simple polynomial - expected without log-transform)"
+			)
 
 	mean_error_pct = np.mean(np.abs((y_pred - y) / y)) * 100
 	logger.info(
 		f"Model R²: {metrics['r2_score']:.4f}, RMSE: {metrics['rmse']:.4f}, "
 		f"MAE: {metrics['mae']:.4f}, Mean Error: {mean_error_pct:.1f}%"
 	)
-
-	# Store epsilon in model for predictions
-	model.epsilon_ = epsilon
 
 	return model, poly, metrics
 
@@ -131,15 +145,16 @@ def create_prediction_function(model: Ridge, poly: PolynomialFeatures, feature_n
 	"""Create a prediction function from trained model.
 
 	Args:
-		model: Trained model (trained on log-transformed target)
+		model: Trained model (may or may not use log-transform)
 		poly: Polynomial transformer
 		feature_names: Feature names in order
 
 	Returns:
-		Prediction function that returns positive QPU seconds
+		Prediction function that returns QPU seconds
 	"""
-	# Get epsilon from model if available (from log-transform training)
-	epsilon = getattr(model, "epsilon_", 0.001)
+	# Get epsilon from model if available (indicates log-transform was used)
+	epsilon = getattr(model, "epsilon_", None)
+	uses_log_transform = epsilon is not None
 
 	def predict(qubits: int, depth: int, batches: int, shots: int) -> float:
 		"""Predict QPU seconds.
@@ -151,37 +166,42 @@ def create_prediction_function(model: Ridge, poly: PolynomialFeatures, feature_n
 			shots: Number of shots
 
 		Returns:
-			Predicted QPU seconds (always positive due to log-transform)
+			Predicted QPU seconds
 		"""
 		# Create DataFrame with feature names to avoid sklearn warning
 		features = pd.DataFrame([[qubits, depth, batches, shots / 1000.0]], columns=feature_names)
 		features_poly = poly.transform(features)
-		log_pred = model.predict(features_poly)[0]
-		# Transform back from log space
-		pred = np.exp(log_pred) - epsilon
-		# Ensure positive (should always be true with log-transform)
-		return max(0.0, float(pred))
+		raw_pred = model.predict(features_poly)[0]
+
+		if uses_log_transform:
+			# Transform back from log space
+			pred = np.exp(raw_pred) - epsilon
+			# Ensure positive (should always be true with log-transform)
+			return max(0.0, float(pred))
+		else:
+			# Simple polynomial - prediction is already in original space
+			return float(raw_pred)
 
 	return predict
 
 
 def format_javascript_model(
-	coefficients: dict[str, float], device_name: str, device_id: str, epsilon: float = 0.001
+	coefficients: dict[str, float], device_name: str, device_id: str, epsilon: float | None = 0.001
 ) -> str:
 	"""Format model as JavaScript code for frontend.
 
 	Args:
-		coefficients: Model coefficients (in log-space)
+		coefficients: Model coefficients
 		device_name: Display name
 		device_id: Device identifier
-		epsilon: Epsilon value used in log-transform (default: 0.001)
+		epsilon: Epsilon value used in log-transform (None if no log-transform, default: 0.001)
 
 	Returns:
 		JavaScript code string
 
 	Note:
-		The model is trained on log-transformed targets, so the frontend
-		must apply exp(prediction) - epsilon to get actual QPU seconds.
+		If epsilon is provided, the model uses log-transform and frontend must apply exp(prediction) - epsilon.
+		If epsilon is None, simple polynomial model (no transform needed).
 	"""
 	intercept = coefficients.get("intercept", 0.0)
 	terms = []
@@ -199,14 +219,15 @@ def format_javascript_model(
 	terms.sort(key=lambda x: abs(x["coefficient"]), reverse=True)
 
 	# Generate JavaScript
-	js_lines = [
-		f"\t'{device_id}': {{",
-		f"\t\tname: '{device_name}',",
-		"\t\tlogTransform: true,  // Model trained on log(y), must apply exp()",
-		f"\t\tepsilon: {epsilon:.6f},",
-		f"\t\tintercept: {intercept:.6f},",
-		"\t\tterms: [",
-	]
+	js_lines = [f"\t'{device_id}': {{", f"\t\tname: '{device_name}',"]
+
+	# Add log-transform fields only if epsilon is provided
+	if epsilon is not None:
+		js_lines.extend(
+			["\t\tlogTransform: true,  // Model trained on log(y), must apply exp()", f"\t\tepsilon: {epsilon:.6f},"]
+		)
+
+	js_lines.extend([f"\t\tintercept: {intercept:.6f},", "\t\tterms: ["])
 
 	for term in terms:
 		if term["type"] == "single":

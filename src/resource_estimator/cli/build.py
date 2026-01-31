@@ -22,8 +22,13 @@ def main():
 	parser.add_argument("--device", type=str, required=True, help="Device identifier (e.g., 'helmi')")
 	parser.add_argument("--device-name", type=str, help="Display name (defaults to device ID)")
 	parser.add_argument("--output-json", type=str, help="Output JSON file")
-	parser.add_argument("--degree", type=int, default=3, help="Polynomial degree (default: 2)")
+	parser.add_argument("--degree", type=int, default=3, help="Polynomial degree (default: 3)")
 	parser.add_argument("--alpha", type=float, default=0.01, help="Regularization strength (default: 0.01)")
+	parser.add_argument(
+		"--no-log-transform",
+		action="store_true",
+		help="Disable log-transform (use simple polynomial regression instead)",
+	)
 	parser.add_argument(
 		"--update-frontend",
 		type=str,
@@ -37,15 +42,18 @@ def main():
 		X, y = prepare_training_data(data)
 
 		# Train model
-		model, poly, metrics = train_polynomial_model(X, y, args.degree, args.alpha)
+		use_log_transform = not args.no_log_transform
+		model, poly, metrics = train_polynomial_model(
+			X, y, args.degree, args.alpha, use_log_transform=use_log_transform
+		)
 
 		# Extract coefficients
 		feature_names = X.columns.tolist()
 		coefficients = extract_model_coefficients(model, poly, feature_names)
 
-		# Format JavaScript (include epsilon from log-transform)
+		# Format JavaScript (include epsilon only if log-transform is used)
 		device_name = args.device_name or args.device.replace("-", " ").title()
-		epsilon = getattr(model, "epsilon_", 0.001)
+		epsilon = getattr(model, "epsilon_", None) if use_log_transform else None
 		js_code = format_javascript_model(coefficients, device_name, args.device, epsilon)
 
 		# Print results
