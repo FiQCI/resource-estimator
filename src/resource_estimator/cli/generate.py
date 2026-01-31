@@ -20,8 +20,8 @@ def main():
 	parser.add_argument(
 		"--job-timeout",
 		type=float,
-		default=900.0,
-		help="Timeout for job completion in seconds (default: 900, same as iqm-client DEFAULT_TIMEOUT_SECONDS)",
+		default=1800.0,
+		help="Timeout for job completion in seconds (default: 1800 = 30 min, increased to handle backend queue delays)",
 	)
 	parser.add_argument(
 		"--checkpoint",
