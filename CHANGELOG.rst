@@ -6,6 +6,9 @@ Version 0.3.0
 ============
 
 * Add python source files for generating data, building the model, and validating the model.
+  * Implement status polling for async job submission to prevent timeout issues.
+* Add VTT Q50 log-transform model with improved accuracy
+* Update documentation to reflect log-transform approach for VTT Q50.
 * Update VTT Q50 model coefficients.
   `#5 <https://github.com/FiQCI/resource-estimator/pull/5>`_
 
