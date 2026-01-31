@@ -309,57 +309,52 @@ def _save_checkpoint(data: list[dict[str, Any]], checkpoint_path: str) -> None:
 	logger.debug(f"Checkpoint saved: {len(data)} data points")
 
 
-def _load_checkpoint(checkpoint_path: str) -> list[dict[str, Any]]:
+def _load_checkpoint(checkpoint_path: str) -> tuple[list[dict[str, Any]], set[tuple]]:
 	"""Load data from checkpoint file if it exists.
 
 	Args:
 		checkpoint_path: Path to checkpoint file
 
 	Returns:
-		List of previously collected data points, or empty list if no checkpoint exists
+		Tuple of (list of previously collected data points, set of param tuples for fast lookup)
 	"""
 	import pandas as pd
 	from pathlib import Path
 
 	if not Path(checkpoint_path).exists():
-		return []
+		return [], set()
 
 	try:
 		df = pd.read_csv(checkpoint_path)
 		data = df.to_dict("records")
 		logger.info(f"Resuming from checkpoint: {len(data)} data points already collected")
-		return data
+
+		# Create set of tuples for O(1) lookup
+		param_set = set()
+		for point in data:
+			qubits = point.get("num_qubits") or point.get("qubits")
+			param_tuple = (qubits, point.get("depth"), point.get("batches"), point.get("shots"))
+			param_set.add(param_tuple)
+
+		return data, param_set
 	except Exception as e:
 		logger.warning(f"Failed to load checkpoint: {e}. Starting fresh.")
-		return []
+		return [], set()
 
 
-def _is_already_collected(params: dict[str, int], collected_data: list[dict[str, Any]]) -> bool:
-	"""Check if parameters have already been collected.
+def _is_already_collected(params: dict[str, int], param_set: set[tuple]) -> bool:
+	"""Check if parameters have already been collected (O(1) lookup).
 
 	Args:
 		params: Parameter dictionary to check (keys: qubits, depth, batches, shots)
-		collected_data: List of already collected data points (keys: num_qubits, depth, batches, shots)
+		param_set: Set of already collected parameter tuples for fast lookup
 
 	Returns:
 		True if this parameter combination has been collected
 	"""
-	# Handle both key naming conventions: 'qubits' vs 'num_qubits'
 	param_qubits = params.get("qubits") or params.get("num_qubits")
-	param_depth = params.get("depth")
-	param_batches = params.get("batches")
-	param_shots = params.get("shots")
-
-	for data_point in collected_data:
-		data_qubits = data_point.get("num_qubits") or data_point.get("qubits")
-		if (
-			data_qubits == param_qubits
-			and data_point.get("depth") == param_depth
-			and data_point.get("batches") == param_batches
-			and data_point.get("shots") == param_shots
-		):
-			return True
-	return False
+	param_tuple = (param_qubits, params.get("depth"), params.get("batches"), params.get("shots"))
+	return param_tuple in param_set
 
 
 def collect_timing_data(
@@ -409,8 +404,8 @@ def collect_timing_data(
 		f"Parameter ranges adjusted for server limits: batches=(1,{max_safe_batches}), depth=(1,{max_safe_depth}), shots=(1000,{max_safe_shots})"
 	)
 
-	# Load existing data if resuming
-	all_data = _load_checkpoint(checkpoint_path) if checkpoint_path else []
+	# Load existing data if resuming (returns data list and param set for fast lookup)
+	all_data, param_set = _load_checkpoint(checkpoint_path) if checkpoint_path else ([], set())
 
 	# Isolated parameter sweeps
 	if include_isolated:
@@ -419,16 +414,21 @@ def collect_timing_data(
 		all_data.extend(isolated_data)
 		if checkpoint_path:
 			_save_checkpoint(all_data, checkpoint_path)
+			# Update param_set with new data
+			for data_point in isolated_data:
+				qubits = data_point.get("num_qubits") or data_point.get("qubits")
+				param_tuple = (qubits, data_point.get("depth"), data_point.get("batches"), data_point.get("shots"))
+				param_set.add(param_tuple)
 
 	# Latin Hypercube sampling
 	logger.info(f"Collecting {num_samples} samples via Latin Hypercube...")
 	samples = generate_latin_hypercube_samples(param_ranges, num_samples)
 
-	# Skip already collected samples when resuming
+	# Skip already collected samples when resuming (O(1) lookup with set)
 	skipped = 0
 
 	for idx, params in enumerate(tqdm(samples, desc="Comprehensive sampling")):
-		if checkpoint_path and _is_already_collected(params, all_data):
+		if checkpoint_path and _is_already_collected(params, param_set):
 			skipped += 1
 			continue
 
@@ -440,8 +440,11 @@ def collect_timing_data(
 			all_data.append(result)
 			logger.info(f"✓ Collected sample {len(all_data)}/{num_samples}: qpu_seconds={result['qpu_seconds']:.2f}s")
 
-			# Save checkpoint after each successful experiment
+			# Update param_set with new data
 			if checkpoint_path:
+				qubits = result.get("num_qubits") or params.get("qubits")
+				param_tuple = (qubits, result.get("depth"), result.get("batches"), result.get("shots"))
+				param_set.add(param_tuple)
 				_save_checkpoint(all_data, checkpoint_path)
 				logger.debug(f"Checkpoint saved: {len(all_data)} samples")
 
