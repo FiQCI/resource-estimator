@@ -8,6 +8,7 @@
 const DEVICE_PARAMS = {
 	helmi: {
 		name: 'Helmi',
+		max_qubits: 5,
 		intercept: 2.361885,
 		terms: [
 			{type: 'interaction', variables: ['batches', 'kshots'], coefficient: 0.432804},
@@ -27,6 +28,7 @@ const DEVICE_PARAMS = {
 	},
 	'vtt-q50': {
 		name: 'VTT Q50',
+		max_qubits: 54,
 		// Model: Log-transform (captures multiplicative structure)
 		logTransform: true,  // Model trained on log(y), must apply exp()
 		epsilon: 0.001000,
