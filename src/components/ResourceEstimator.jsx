@@ -7,7 +7,7 @@ import { DEVICE_PARAMS, calculateQPUSeconds } from '../utils/ResourceEstimatorMo
 
 const fontFamily = '-apple-system,BlinkMacSystemFont,"Roboto","Segoe UI","Helvetica Neue","Lucida Grande",Arial,sans-serif';
 
-const ParameterInput = ({ label, value, onChange }) => {
+const ParameterInput = ({ label, value, onChange, hint, error }) => {
 	const inputContainerStyle = {
 		flex: '1 0 45%',
 		marginBottom: '0.75rem',
@@ -25,12 +25,29 @@ const ParameterInput = ({ label, value, onChange }) => {
 		fontFamily: fontFamily
 	};
 
+	const hintStyle = {
+		display: 'block',
+		fontSize: '0.85rem',
+		color: '#6B7280',
+		marginTop: '0.25rem',
+		fontFamily: fontFamily
+	};
+
+	const errorStyle = {
+		display: 'block',
+		fontSize: '0.85rem',
+		color: '#DC2626',
+		marginTop: '0.25rem',
+		fontFamily: fontFamily,
+		fontWeight: '500'
+	};
+
 	const inputStyle = {
 		display: 'block',
 		width: '100%',
 		padding: '0.5rem 0.7rem',
 		backgroundColor: 'white',
-		border: '1px solid #D1D5DB',
+		border: error ? '2px solid #DC2626' : '1px solid #D1D5DB',
 		borderRadius: '0.35rem',
 		boxSizing: 'border-box',
 		color: '#000',
@@ -65,6 +82,7 @@ const ParameterInput = ({ label, value, onChange }) => {
 				style={inputStyle}
 				placeholder="Enter value"
 			/>
+			{error ? <span style={errorStyle}>{error}</span> : hint && <span style={hintStyle}>{hint}</span>}
 		</div>
 	);
 };
@@ -81,6 +99,7 @@ const ResourceEstimator = () => {
 	const [estimatedQPU, setEstimatedQPU] = useState(null);
 	const [history, setHistory] = useState([]);
 	const [basket, setBasket] = useState([]);
+	const [validationErrors, setValidationErrors] = useState({});
 
 	// Load history and basket from localStorage on component mount
 	useEffect(() => {
@@ -88,23 +107,61 @@ const ResourceEstimator = () => {
 		setBasket(JobHistoryManager.loadBasket());
 	}, []);
 
+	// Re-validate qubits when device changes
+	useEffect(() => {
+		if (formData.qubits) {
+			validateField('qubits', formData.qubits);
+		}
+	}, [selectedDevice]);
+
+	const validateField = (field, value) => {
+		const numValue = parseInt(value, 10);
+		const newErrors = { ...validationErrors };
+
+		if (field === 'qubits') {
+			const deviceConfig = DEVICE_PARAMS[selectedDevice];
+			if (value === '' || value === undefined || value === null) {
+				newErrors.qubits = 'Qubits is required';
+			} else if (numValue < 1) {
+				newErrors.qubits = 'Must be at least 1 qubit';
+			} else if (deviceConfig.max_qubits && numValue > deviceConfig.max_qubits) {
+				newErrors.qubits = `${deviceConfig.name} supports max ${deviceConfig.max_qubits} qubits`;
+			} else {
+				delete newErrors.qubits;
+			}
+		} else {
+			// Validate other fields for positive values
+			if (value === '' || value === undefined || value === null) {
+				newErrors[field] = 'This field is required';
+			} else if (numValue < 1) {
+				newErrors[field] = 'Must be a positive integer';
+			} else {
+				delete newErrors[field];
+			}
+		}
+
+		setValidationErrors(newErrors);
+	};
+
 	const handleInputChange = (field, value) => {
 		console.log(`Updating ${field} to ${value}`);
 		setFormData(prevState => ({
 			...prevState,
 			[field]: value
 		}));
+		validateField(field, value);
 	};
 
 	const calculateQPU = () => {
-		// Validate all inputs are present before calculating
+		// Validate all fields first
 		const requiredFields = ['batches', 'depth', 'shots', 'qubits'];
-		const missingFields = requiredFields.filter(field =>
-			formData[field] === '' || formData[field] === undefined || formData[field] === null
-		);
+		requiredFields.forEach(field => validateField(field, formData[field]));
 
-		if (missingFields.length > 0) {
-			alert('Please fill in all parameter fields before calculating.');
+		// Check if there are any validation errors
+		const hasErrors = Object.keys(validationErrors).length > 0 ||
+			requiredFields.some(field => formData[field] === '' || formData[field] === undefined || formData[field] === null);
+
+		if (hasErrors) {
 			return;
 		}
 
@@ -114,7 +171,7 @@ const ResourceEstimator = () => {
 			depth: parseInt(formData.depth, 10),
 			shots: parseInt(formData.shots, 10),
 			qubits: parseInt(formData.qubits, 10)
-		};
+		}
 
 		// Calculate QPU seconds using our model
 		const qpuSeconds = calculateQPUSeconds(selectedDevice, numericFormData);
@@ -273,8 +330,10 @@ const ResourceEstimator = () => {
 						<ParameterInput
 							label="Number of Qubits"
 							value={formData.qubits}
-							onChange={(value) => handleInputChange('qubits', value)}
-						/>
+						onChange={(value) => handleInputChange('qubits', value)}
+						hint={`Max: ${DEVICE_PARAMS[selectedDevice].max_qubits} qubits`}
+						error={validationErrors.qubits}
+					/>
 					</div>
 
 					<div style={{marginTop: '1rem', textAlign: 'center'}}>

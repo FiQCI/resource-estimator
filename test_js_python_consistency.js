@@ -1,5 +1,22 @@
 // Test JavaScript model consistency with Python
-import { calculateQPUSeconds } from './src/utils/ResourceEstimatorModel.js';
+import { calculateQPUSeconds, DEVICE_PARAMS } from './src/utils/ResourceEstimatorModel.js';
+
+// First, verify device configurations
+console.log('Verifying device configurations...');
+console.log('Helmi max_qubits:', DEVICE_PARAMS.helmi.max_qubits);
+console.log('VTT Q50 max_qubits:', DEVICE_PARAMS['vtt-q50'].max_qubits);
+
+if (DEVICE_PARAMS.helmi.max_qubits !== 5) {
+	console.error('❌ Helmi should have max_qubits = 5');
+	process.exit(1);
+}
+
+if (DEVICE_PARAMS['vtt-q50'].max_qubits !== 54) {
+	console.error('❌ VTT Q50 should have max_qubits = 54');
+	process.exit(1);
+}
+
+console.log('✅ Device configurations are correct\n');
 
 // Test cases from CSV (verify JavaScript matches Python, not necessarily actual values)
 // The goal is to ensure JS and Python produce identical predictions

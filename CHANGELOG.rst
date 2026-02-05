@@ -2,6 +2,12 @@
 Changelog
 =========
 
+Version 0.3.1
+==========================
+
+* Add device-specific qubit limits
+* Display maximum qubit count hint in the UI for each device
+
 Version 0.3.0
 ============
 
