@@ -7,7 +7,7 @@ import { DEVICE_PARAMS, calculateQPUSeconds } from '../utils/ResourceEstimatorMo
 
 const fontFamily = '-apple-system,BlinkMacSystemFont,"Roboto","Segoe UI","Helvetica Neue","Lucida Grande",Arial,sans-serif';
 
-const ParameterInput = ({ label, value, onChange, hint, error }) => {
+const ParameterInput = ({ label, value, onChange, hint, error, disabled = false }) => {
 	const inputContainerStyle = {
 		flex: '1 0 45%',
 		marginBottom: '0.75rem',
@@ -20,7 +20,7 @@ const ParameterInput = ({ label, value, onChange, hint, error }) => {
 		display: 'block',
 		fontSize: '1.1rem',
 		fontWeight: '500',
-		color: '#374151',
+		color: disabled ? '#9CA3AF' : '#374151',
 		marginBottom: '0.35rem',
 		fontFamily: fontFamily
 	};
@@ -46,13 +46,14 @@ const ParameterInput = ({ label, value, onChange, hint, error }) => {
 		display: 'block',
 		width: '100%',
 		padding: '0.5rem 0.7rem',
-		backgroundColor: 'white',
+		backgroundColor: disabled ? '#F3F4F6' : 'white',
 		border: error ? '2px solid #DC2626' : '1px solid #D1D5DB',
 		borderRadius: '0.35rem',
 		boxSizing: 'border-box',
-		color: '#000',
+		color: disabled ? '#9CA3AF' : '#000',
 		fontFamily: fontFamily,
 		fontSize: '1.1rem',
+		cursor: disabled ? 'not-allowed' : 'text',
 		// Hide up/down arrows for number inputs
 		WebkitAppearance: 'none',
 		MozAppearance: 'textfield'
@@ -81,6 +82,7 @@ const ParameterInput = ({ label, value, onChange, hint, error }) => {
 				onChange={handleInputChange}
 				style={inputStyle}
 				placeholder="Enter value"
+				disabled={disabled}
 			/>
 			{error ? <span style={errorStyle}>{error}</span> : hint && <span style={hintStyle}>{hint}</span>}
 		</div>
@@ -91,9 +93,9 @@ const ResourceEstimator = () => {
 	const [selectedDevice, setSelectedDevice] = useState('helmi');
 	const [formData, setFormData] = useState({
 		batches: 1,
-		depth: 10,
 		shots: 1000,
-		qubits: 5
+		qubits: 5,
+		depth: 1
 	});
 
 	const [estimatedQPU, setEstimatedQPU] = useState(null);
@@ -154,7 +156,10 @@ const ResourceEstimator = () => {
 
 	const calculateQPU = () => {
 		// Validate all fields first
-		const requiredFields = ['batches', 'depth', 'shots', 'qubits'];
+		const requiredFields = ['batches', 'shots', 'qubits'];
+		if (selectedDevice === 'helmi') {
+			requiredFields.push('depth');
+		}
 		requiredFields.forEach(field => validateField(field, formData[field]));
 
 		// Check if there are any validation errors
@@ -168,9 +173,13 @@ const ResourceEstimator = () => {
 		// Convert any string values to numbers
 		const numericFormData = {
 			batches: parseInt(formData.batches, 10),
-			depth: parseInt(formData.depth, 10),
 			shots: parseInt(formData.shots, 10),
 			qubits: parseInt(formData.qubits, 10)
+		}
+
+		// Add depth for Helmi
+		if (selectedDevice === 'helmi') {
+			numericFormData.depth = parseInt(formData.depth, 10);
 		}
 
 		// Calculate QPU seconds using our model
@@ -313,27 +322,32 @@ const ResourceEstimator = () => {
 							label="Circuits in Batch"
 							value={formData.batches}
 							onChange={(value) => handleInputChange('batches', value)}
-						/>
-
-						<ParameterInput
-							label="Circuit Depth (Gates)"
-							value={formData.depth}
-							onChange={(value) => handleInputChange('depth', value)}
+							error={validationErrors.batches}
 						/>
 
 						<ParameterInput
 							label="Shots per Circuit"
 							value={formData.shots}
 							onChange={(value) => handleInputChange('shots', value)}
+							error={validationErrors.shots}
 						/>
 
 						<ParameterInput
 							label="Number of Qubits"
 							value={formData.qubits}
-						onChange={(value) => handleInputChange('qubits', value)}
-						hint={`Max: ${DEVICE_PARAMS[selectedDevice].max_qubits} qubits`}
-						error={validationErrors.qubits}
-					/>
+							onChange={(value) => handleInputChange('qubits', value)}
+							hint={`Max: ${DEVICE_PARAMS[selectedDevice].max_qubits} qubits`}
+							error={validationErrors.qubits}
+						/>
+
+						<ParameterInput
+							label="Circuit Depth"
+							value={formData.depth}
+							onChange={(value) => handleInputChange('depth', value)}
+							hint={selectedDevice === 'helmi' ? 'Number of layers in circuit' : 'Not used for VTT Q50'}
+							error={validationErrors.depth}
+							disabled={selectedDevice === 'vtt-q50'}
+						/>
 					</div>
 
 					<div style={{marginTop: '1rem', textAlign: 'center'}}>
