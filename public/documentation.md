@@ -5,7 +5,7 @@ Data is gathered by submitting quantum circuits with varying values for shots, d
 
 The data is analyzed using **polynomial ridge regression models** implemented with scikit-learn's [`Ridge`](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.Ridge.html) and [`PolynomialFeatures`](https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.PolynomialFeatures.html). A separate model is created for each quantum computer:
 - **Helmi**: Degree-2 polynomial
-- **VTT Q50**: Degree-3 polynomial with **log-transform**
+- **VTT Q50**: Degree-4 polynomial
 
 ## Helmi
 
@@ -21,15 +21,15 @@ Where $kshots = shots/1000$ and $B$ is number of circuits in a batch.
 
 ## VTT Q50
 
-The model for VTT Q50 uses a **degree-3 polynomial regression with log-transform**. The equation (showing only the most significant terms) is:
+The model for VTT Q50 uses a **degree-4 polynomial regression**. The equation (showing only the most significant terms) is:
 
-$$\log(QPU + 0.001) = -0.531 + 0.364 \times B + 0.221 \times kshots + 0.030 \times qubits - 0.022 \times B^2 + ...$$
+$$\text{QPU seconds} = 3.122 + 2.239 \times kshots - 2.928 \times B + 0.586 \times B^2 - 1.215 \times qubits + ...$$
 
-$$QPU = \exp(\text{result}) - 0.001$$
-
-Where only the most significant terms are included. This shows that VTT Q50 is strongly dependent on batches and shots. VTT Q50 has a baseline initialization time of approximately **1.2 seconds**.
+Where only the most significant terms are included. Circuit depth is excluded from the model as analysis showed it has minimal impact on QPU execution time.
 
 Where $kshots = shots/1000$ and $B$ is number of circuits in a batch.
+
+The initialization overhead is approximately **1.1-1.2 seconds**.
 
 ![image](./actual_vs_predicted-vtt-q50.png)
 
@@ -42,6 +42,10 @@ The model does not work well for circuits with a high depth (`>1000`) count, how
 - **What is the constant initialization time that is stated above?**
 
 Both VTT Q50 and Helmi have a constant initialization time associated with any quantum job submitted to them. For a batch of circuits, the constant initialization time applies to the whole batch (list of circuits). However, submitting many smaller batches of quantum circuits does apply this time. This is mostly due to the initialization of the control electronics needed before job submission.
+
+- **Why does VTT Q50's model not include circuit depth?**
+
+The circuit depth has minimal impact on QPU execution time. The runtime is largely dominated by the number of circuit executions (shots × batches) and qubit count. Removing depth from the VTT Q50 model simplifies the estimation model.
 
 - **Is the initialization time needed every time a parameter is updated in the quantum circuit?**
 
