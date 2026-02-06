@@ -23,11 +23,18 @@ Where $kshots = shots/1000$ and $B$ is number of circuits in a batch.
 
 The model for VTT Q50 uses a **degree-4 polynomial regression**. The equation (showing only the most significant terms) is:
 
-$$\text{QPU seconds} = 3.122 + 2.239 \times kshots - 2.928 \times B + 0.586 \times B^2 - 1.215 \times qubits + ...$$
+**VTT Q50 uses a model:**
 
-Where only the most significant terms are included. Circuit depth is excluded from the model as analysis showed it has minimal impact on QPU execution time.
+$$T = T_{init} + \eta(B) \times B \times shots \times \alpha$$
 
-Where $kshots = shots/1000$ and $B$ is number of circuits in a batch.
+Where:
+- $T_{init} = ~0.88$ seconds (baseline overhead)
+- $\eta(B) = ~0.986^{\min(B, 19)}$ (batching efficiency factor)
+- $\alpha = ~0.000625$ (throughput coefficient)
+- $B$ = number of circuits in a batch
+
+Note that the circuit depth does not affect runtime by a noticeable amount. The number of qubits has a minimal impact.
+
 
 The initialization overhead is approximately **1.1-1.2 seconds**.
 
@@ -43,9 +50,9 @@ The model does not work well for circuits with a high depth (`>1000`) count, how
 
 Both VTT Q50 and Helmi have a constant initialization time associated with any quantum job submitted to them. For a batch of circuits, the constant initialization time applies to the whole batch (list of circuits). However, submitting many smaller batches of quantum circuits does apply this time. This is mostly due to the initialization of the control electronics needed before job submission.
 
-- **Why does VTT Q50's model not include circuit depth?**
+- **Why does VTT Q50's model not include circuit depth or qubit count?**
 
-The circuit depth has minimal impact on QPU execution time. The runtime is largely dominated by the number of circuit executions (shots × batches) and qubit count. Removing depth from the VTT Q50 model simplifies the estimation model.
+The circuit depth and number of qubits has minimal impact on QPU execution time. The runtime is largely dominated by the number of circuit executions (shots × batches) and qubit count. Removing depth from the VTT Q50 model simplifies the estimation model.
 
 - **Is the initialization time needed every time a parameter is updated in the quantum circuit?**
 
