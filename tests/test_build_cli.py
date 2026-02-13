@@ -68,10 +68,12 @@ class TestBuildCLI:
 
 			# Check outputs
 			config_file = output_dir / "helmi_model_config.json"
-			plot_file = output_dir / "helmi_final_model.png"
+			plot_file = output_dir / "helmi_polynomial_model.png"
+			public_plot_file = output_dir / "actual_vs_predicted-helmi.png"
 
 			assert config_file.exists()
 			assert plot_file.exists()
+			assert public_plot_file.exists()
 
 			# Validate config structure
 			with open(config_file) as f:

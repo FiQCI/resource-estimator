@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import Ridge
@@ -20,6 +19,17 @@ from resource_estimator.model import (
 	format_javascript_model,
 	prepare_training_data,
 	train_polynomial_model,
+)
+from resource_estimator.plotting import (
+	plot_actual_vs_predicted_simple,
+	plot_analytical_model_3panel,
+	plot_polynomial_model,
+)
+from resource_estimator.js_export import (
+	format_polynomial_model,
+	format_analytical_model,
+	save_model_config,
+	update_javascript_model_file,
 )
 from resource_estimator.utils import load_data_from_csv, save_model_as_json, update_javascript_model
 
@@ -104,95 +114,28 @@ def fit_analytical_model(data_path: str, output_dir: str):
 	logger.info(f"Model performance: R²={r2:.4f}, RMSE={rmse:.2f}s, MAE={mae:.2f}s")
 
 	# Generate JavaScript configuration
-	js_config = {
-		"name": "VTT Q50",
-		"max_qubits": 54,
-		"model_type": "analytical",
+	params_dict = {
 		"T_init": float(optimal_params[0]),
 		"efficiency_base": float(optimal_params[1]),
 		"throughput_coef": float(optimal_params[2]),
 		"batch_cap": float(optimal_params[3]),
 	}
+	js_config = format_analytical_model(params_dict, "VTT Q50", 54)
 
 	# Save JSON configuration
 	config_path = output_path / "vtt-q50_analytical_config.json"
-	with open(config_path, "w") as f:
-		json.dump(js_config, f, indent=2)
-	logger.info(f"Saved config: {config_path}")
+	save_model_config(js_config, config_path)
 
-	# Generate validation plot
-	plt.figure(figsize=(14, 5))
+	# Calculate efficiency for plotting
+	efficiency = np.power(optimal_params[1], np.minimum(batches, optimal_params[3]))
 
-	# Plot 1: Actual vs Predicted
-	plt.subplot(1, 3, 1)
-	plt.scatter(y_true, y_pred, alpha=0.5, s=20)
-	min_val = min(y_true.min(), y_pred.min())
-	max_val = max(y_true.max(), y_pred.max())
-	plt.plot([min_val, max_val], [min_val, max_val], "r--", lw=2)
-	plt.xlabel("Actual QPU Seconds")
-	plt.ylabel("Predicted QPU Seconds")
-	plt.title(f"Analytical Model: R² = {r2:.4f}")
-	plt.grid(True, alpha=0.3)
-
-	# Plot 2: Residuals
-	plt.subplot(1, 3, 2)
-	residuals = y_true - y_pred
-	plt.scatter(y_pred, residuals, alpha=0.5, s=20)
-	plt.axhline(y=0, color="r", linestyle="--", lw=2)
-	plt.xlabel("Predicted QPU Seconds")
-	plt.ylabel("Residuals")
-	plt.title("Residual Plot")
-	plt.grid(True, alpha=0.3)
-
-	# Plot 3: Efficiency curve
-	plt.subplot(1, 3, 3)
-	batch_range = np.arange(1, 26)
-	efficiency = np.power(optimal_params[1], np.minimum(batch_range, optimal_params[3]))
-	plt.plot(batch_range, efficiency, "b-", lw=2)
-	plt.axvline(x=optimal_params[3], color="r", linestyle="--", alpha=0.5, label=f"Cap at {optimal_params[3]:.0f}")
-	plt.xlabel("Number of Batches")
-	plt.ylabel("Efficiency Factor")
-	plt.title("Batching Efficiency Curve")
-	plt.grid(True, alpha=0.3)
-	plt.legend()
-
-	plt.tight_layout()
+	# Generate 3-panel technical plot
 	plot_path = output_path / "vtt-q50_analytical_model.png"
-	plt.savefig(plot_path, dpi=150, bbox_inches="tight")
-	logger.info(f"Saved plot: {plot_path}")
-	plt.close()
+	plot_analytical_model_3panel(y_true, y_pred, batches, efficiency, r2, rmse, mae, plot_path)
 
-	# Generate public-facing plot (simple actual vs predicted)
-	plt.figure(figsize=(8, 6))
-	plt.scatter(y_true, y_pred, alpha=0.6, edgecolors="k", linewidth=0.5)
-
-	min_val = min(y_true.min(), y_pred.min())
-	max_val = max(y_true.max(), y_pred.max())
-	plt.plot([min_val, max_val], [min_val, max_val], "r--", lw=2, label="Perfect Prediction")
-
-	plt.xlabel("Actual QPU Seconds", fontsize=12)
-	plt.ylabel("Predicted QPU Seconds", fontsize=12)
-	plt.title("VTT Q50", fontsize=14, fontweight="bold")
-
-	metrics_text = f"R² = {r2:.4f}"
-	plt.text(
-		0.05,
-		0.95,
-		metrics_text,
-		transform=plt.gca().transAxes,
-		fontsize=11,
-		verticalalignment="top",
-		bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.8),
-	)
-
-	plt.legend()
-	plt.grid(True, alpha=0.3)
-	plt.tight_layout()
-
+	# Generate public-facing plot
 	public_plot_path = output_path / "actual_vs_predicted-vtt-q50.png"
-	plt.savefig(public_plot_path, dpi=300, bbox_inches="tight")
-	logger.info(f"Saved public plot: {public_plot_path}")
-	plt.close()
+	plot_actual_vs_predicted_simple(y_true, y_pred, "VTT Q50", r2, public_plot_path)
 
 	return js_config, r2, rmse, mae
 
@@ -261,66 +204,26 @@ def build_helmi_model(data_path: str, output_dir: str, max_qubits: int = 5):
 	intercept = model.intercept_
 	coefficients = model.coef_
 
-	terms = []
-	for coef, feature in zip(coefficients, feature_names):
-		if abs(coef) > 1e-10:
-			term = feature.replace(" ", "*")
-			terms.append({"term": term, "coefficient": float(coef)})
+	# Extract model coefficients
+	coef_dict = {feature: float(coef) for feature, coef in zip(feature_names, coefficients) if abs(coef) > 1e-10}
+	coef_dict["intercept"] = float(intercept)
 
-	js_config = {
-		"name": device_name,
-		"max_qubits": config["max_qubits"],
-		"model_type": "polynomial",
-		"degree": config["degree"],
-		"use_log_transform": False,
-		"epsilon": 0,
-		"intercept": float(intercept),
-		"terms": terms,
-	}
+	# Format for JavaScript export
+	js_config = format_polynomial_model(coef_dict, intercept, device_name, config["max_qubits"])
 
 	# Save JSON configuration
 	config_path = output_path / f"{device}_model_config.json"
-	with open(config_path, "w") as f:
-		json.dump(js_config, f, indent=2)
-	logger.info(f"Saved config: {config_path}")
+	save_model_config(js_config, config_path)
 
-	# Generate validation plot
-	plt.figure(figsize=(10, 6))
-	plt.scatter(y_test, y_test_pred, alpha=0.6, edgecolors="k", linewidth=0.5)
-
-	min_val = min(y_test.min(), y_test_pred.min())
-	max_val = max(y_test.max(), y_test_pred.max())
-	plt.plot([min_val, max_val], [min_val, max_val], "r--", lw=2, label="Perfect Prediction")
-
-	plt.xlabel("Actual QPU Seconds", fontsize=12)
-	plt.ylabel("Predicted QPU Seconds", fontsize=12)
-	plt.title(
-		f"{device_name} - Degree {config['degree']} Polynomial Model (with Depth)", fontsize=14, fontweight="bold"
+	# Generate plots
+	plot_path = output_path / f"{device}_polynomial_model.png"
+	plot_polynomial_model(
+		y_test, y_test_pred, device_name, test_r2, test_rmse, test_mae, config["degree"], num_terms, plot_path
 	)
 
-	metrics_text = f"R² = {test_r2:.4f}\\n"
-	metrics_text += f"RMSE = {test_rmse:.2f}s\\n"
-	metrics_text += f"MAE = {test_mae:.2f}s\\n"
-	metrics_text += f"Terms = {num_terms}"
-
-	plt.text(
-		0.05,
-		0.95,
-		metrics_text,
-		transform=plt.gca().transAxes,
-		fontsize=11,
-		verticalalignment="top",
-		bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.8),
-	)
-
-	plt.legend()
-	plt.grid(True, alpha=0.3)
-	plt.tight_layout()
-
-	plot_path = output_path / f"{device}_final_model.png"
-	plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-	logger.info(f"Saved plot: {plot_path}")
-	plt.close()
+	# Generate public-facing plot
+	public_plot_path = output_path / f"actual_vs_predicted-{device}.png"
+	plot_actual_vs_predicted_simple(y_test, y_test_pred, device_name, test_r2, public_plot_path)
 
 
 def build_vtt_q50_model(output_dir: str):
@@ -422,75 +325,36 @@ def build_all_models(helmi_data_path: str, vtt_data_path: str, output_dir: str):
 	logger.info(f"  Number of terms: {num_terms}")
 	logger.info(f"  Negative predictions: {num_negative}")
 
-	# Generate JavaScript configuration for Helmi (keep original format)
+	# Generate JavaScript configuration for Helmi
 	feature_names = poly.get_feature_names_out(["qubits", "depth", "batches", "kshots"])
 	intercept = model.intercept_
 	coefficients = model.coef_
 
-	terms = []
-	for coef, feature in zip(coefficients, feature_names):
-		if abs(coef) > 1e-10:
-			term = feature.replace(" ", "*")
-			terms.append({"term": term, "coefficient": float(coef)})
+	# Extract model coefficients
+	coef_dict = {feature: float(coef) for feature, coef in zip(feature_names, coefficients) if abs(coef) > 1e-10}
+	coef_dict["intercept"] = float(intercept)
 
-	js_config = {
-		"name": device_name,
-		"max_qubits": config["max_qubits"],
-		"model_type": "polynomial",
-		"degree": config["degree"],
-		"use_log_transform": False,
-		"epsilon": 0,
-		"intercept": float(intercept),
-		"terms": terms,
-	}
+	# Format for JavaScript export
+	js_config = format_polynomial_model(coef_dict, intercept, device_name, config["max_qubits"])
 
 	# Save JSON configuration
 	config_path = output_path / f"{device}_model_config.json"
-	with open(config_path, "w") as f:
-		json.dump(js_config, f, indent=2)
+	save_model_config(js_config, config_path)
 	logger.info(f"  Config saved: {config_path}")
 
-	# Generate validation plot for Helmi
-	plt.figure(figsize=(10, 6))
-	plt.scatter(y_test, y_test_pred, alpha=0.6, edgecolors="k", linewidth=0.5)
-
-	min_val = min(y_test.min(), y_test_pred.min())
-	max_val = max(y_test.max(), y_test_pred.max())
-	plt.plot([min_val, max_val], [min_val, max_val], "r--", lw=2, label="Perfect Prediction")
-
-	plt.xlabel("Actual QPU Seconds", fontsize=12)
-	plt.ylabel("Predicted QPU Seconds", fontsize=12)
-	plt.title(
-		f"{device_name} - Degree {config['degree']} Polynomial Model (with Depth)", fontsize=14, fontweight="bold"
-	)
-
-	metrics_text = f"R² = {test_r2:.4f}\\n"
-	metrics_text += f"RMSE = {test_rmse:.2f}s\\n"
-	metrics_text += f"MAE = {test_mae:.2f}s\\n"
-	metrics_text += f"Terms = {num_terms}"
-
-	plt.text(
-		0.05,
-		0.95,
-		metrics_text,
-		transform=plt.gca().transAxes,
-		fontsize=11,
-		verticalalignment="top",
-		bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.8),
-	)
-
-	plt.legend()
-	plt.grid(True, alpha=0.3)
-	plt.tight_layout()
-
+	# Generate plots
 	plot_path = output_path / f"{device}_final_model.png"
-	plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-	logger.info(f"Saved plot: {plot_path}")
-	plt.close()
+	plot_polynomial_model(
+		y_test, y_test_pred, device_name, test_r2, test_rmse, test_mae, config["degree"], num_terms, plot_path
+	)
+
+	# Generate public-facing plot
+	public_plot_path = output_path / f"actual_vs_predicted-{device}.png"
+	plot_actual_vs_predicted_simple(y_test, y_test_pred, device_name, test_r2, public_plot_path)
 
 	# Build VTT Q50 analytical model
 	logger.info("Building VTT Q50 analytical model...")
-	js_config_vtt, r2, rmse, mae = fit_analytical_model(vtt_data_path, str(output_path))
+	_, r2, rmse, mae = fit_analytical_model(vtt_data_path, str(output_path))
 
 	logger.info(f"All models saved to: {output_path}")
 
@@ -557,19 +421,8 @@ def main():
 
 			# Update frontend if requested
 			if args.update_frontend:
-				# Generate JavaScript code from config
-				js_code = f"""// {js_config["name"]} - Analytical Model
-// Auto-generated configuration
-{{
-  name: "{js_config["name"]}",
-  max_qubits: {js_config["max_qubits"]},
-  model_type: "analytical",
-  T_init: {js_config["T_init"]},
-  efficiency_base: {js_config["efficiency_base"]},
-  throughput_coef: {js_config["throughput_coef"]},
-  batch_cap: {js_config["batch_cap"]}
-}}"""
-				update_javascript_model(Path(args.update_frontend), args.device, js_code)
+				# Update frontend JavaScript file with config
+				update_javascript_model_file(Path(args.update_frontend), args.device, js_config)
 				logger.info(f"Updated frontend model in {args.update_frontend}")
 
 			logger.info("\nAnalytical model building completed successfully!")
