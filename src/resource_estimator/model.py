@@ -8,6 +8,7 @@ import pandas as pd
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.preprocessing import PolynomialFeatures
+from scipy.optimize import nnls
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +35,90 @@ def prepare_training_data(data: list[dict] | pd.DataFrame) -> tuple[pd.DataFrame
 
 	# Create normalized features
 	df["kshots"] = df["shots"] / 1000.0
+	df["executions"] = df["shots"] * df["batches"]  # Total circuit executions
 
 	# Select features
-	feature_cols = ["qubits", "depth", "batches", "kshots"]
+	# For VTT Q50, exclude depth (has negligible impact and causes unphysical behavior)
+	# For other devices, depth may be included
+	feature_cols = ["qubits", "batches", "kshots"]
+	if "depth" in df.columns:
+		# Check if all depth values are the same (indicates depth not varying)
+		if df["depth"].nunique() > 1:
+			feature_cols.insert(1, "depth")  # Add depth after qubits
+
 	X = df[feature_cols]
 	y = df["qpu_seconds"].values
 
 	return X, y
+
+
+def train_simple_linear_model(data: pd.DataFrame, use_nonneg_constraint: bool = True) -> tuple[dict, dict]:
+	"""Train simplified linear model: qpu_seconds = α + β1·(shots×batches) + β2·qubits
+
+	This is the RECOMMENDED model - simpler, more interpretable, and physics-aligned.
+
+	Args:
+		data: DataFrame with columns [shots, batches, qubits, qpu_seconds]
+		use_nonneg_constraint: If True, use non-negative least squares (default: True)
+
+	Returns:
+		Tuple of (coefficients dict, metrics dict)
+	"""
+	logger.info(f"Training simple linear model (non-negative={use_nonneg_constraint})")
+
+	# Create executions feature
+	X = data[["executions", "qubits"]].values
+	y = data["qpu_seconds"].values
+
+	if use_nonneg_constraint:
+		# Non-negative least squares - ensures all coefficients >= 0
+		X_with_intercept = np.column_stack([np.ones(len(X)), X])
+		coefs, residual = nnls(X_with_intercept, y)
+
+		intercept = coefs[0]
+		coef_executions = coefs[1]
+		coef_qubits = coefs[2]
+
+		y_pred = intercept + coef_executions * X[:, 0] + coef_qubits * X[:, 1]
+	else:
+		# Standard linear regression
+		from sklearn.linear_model import LinearRegression
+
+		model = LinearRegression()
+		model.fit(X, y)
+
+		intercept = model.intercept_
+		coef_executions = model.coef_[0]
+		coef_qubits = model.coef_[1]
+
+		y_pred = model.predict(X)
+
+	# Calculate metrics
+	y_pred_clamped = np.maximum(0, y_pred)
+	neg_count = (y_pred < 0).sum()
+
+	metrics = {
+		"r2_score": r2_score(y, y_pred_clamped),
+		"rmse": np.sqrt(mean_squared_error(y, y_pred_clamped)),
+		"mae": np.mean(np.abs(y - y_pred_clamped)),
+		"negative_predictions": int(neg_count),
+	}
+
+	coefficients = {
+		"intercept": float(intercept),
+		"coef_executions": float(coef_executions),
+		"coef_qubits": float(coef_qubits),
+	}
+
+	if neg_count > 0:
+		logger.warning(f"Model produces {neg_count} negative predictions!")
+	else:
+		logger.info("✓ All predictions non-negative")
+
+	logger.info(f"Model R²: {metrics['r2_score']:.4f}, RMSE: {metrics['rmse']:.4f}, MAE: {metrics['mae']:.4f}")
+	logger.info(f"Coefficients: α={intercept:.6f}, β1={coef_executions:.9f}, β2={coef_qubits:.6f}")
+
+	return coefficients, metrics
 
 
 def train_polynomial_model(
@@ -155,32 +233,61 @@ def create_prediction_function(model: Ridge, poly: PolynomialFeatures, feature_n
 	# Get epsilon from model if available (indicates log-transform was used)
 	epsilon = getattr(model, "epsilon_", None)
 	uses_log_transform = epsilon is not None
+	uses_depth = "depth" in feature_names
 
-	def predict(qubits: int, depth: int, batches: int, shots: int) -> float:
-		"""Predict QPU seconds.
+	if uses_depth:
 
-		Args:
-			qubits: Number of qubits
-			depth: Circuit depth
-			batches: Number of circuits
-			shots: Number of shots
+		def predict(qubits: int, depth: int, batches: int, shots: int) -> float:
+			"""Predict QPU seconds (with depth).
 
-		Returns:
-			Predicted QPU seconds
-		"""
-		# Create DataFrame with feature names to avoid sklearn warning
-		features = pd.DataFrame([[qubits, depth, batches, shots / 1000.0]], columns=feature_names)
-		features_poly = poly.transform(features)
-		raw_pred = model.predict(features_poly)[0]
+			Args:
+				qubits: Number of qubits
+				depth: Circuit depth
+				batches: Number of circuits
+				shots: Number of shots
 
-		if uses_log_transform:
-			# Transform back from log space
-			pred = np.exp(raw_pred) - epsilon
-			# Ensure positive (should always be true with log-transform)
-			return max(0.0, float(pred))
-		else:
-			# Simple polynomial - prediction is already in original space
-			return float(raw_pred)
+			Returns:
+				Predicted QPU seconds
+			"""
+			# Create DataFrame with feature names to avoid sklearn warning
+			features = pd.DataFrame([[qubits, depth, batches, shots / 1000.0]], columns=feature_names)
+			features_poly = poly.transform(features)
+			raw_pred = model.predict(features_poly)[0]
+
+			if uses_log_transform:
+				# Transform back from log space
+				pred = np.exp(raw_pred) - epsilon
+				# Ensure positive (should always be true with log-transform)
+				return max(0.0, float(pred))
+			else:
+				# Simple polynomial - prediction is already in original space
+				return float(raw_pred)
+	else:
+
+		def predict(qubits: int, batches: int, shots: int) -> float:
+			"""Predict QPU seconds (without depth).
+
+			Args:
+				qubits: Number of qubits
+				batches: Number of circuits
+				shots: Number of shots
+
+			Returns:
+				Predicted QPU seconds
+			"""
+			# Create DataFrame with feature names to avoid sklearn warning
+			features = pd.DataFrame([[qubits, batches, shots / 1000.0]], columns=feature_names)
+			features_poly = poly.transform(features)
+			raw_pred = model.predict(features_poly)[0]
+
+			if uses_log_transform:
+				# Transform back from log space
+				pred = np.exp(raw_pred) - epsilon
+				# Ensure positive (should always be true with log-transform)
+				return max(0.0, float(pred))
+			else:
+				# Simple polynomial - prediction is already in original space
+				return float(raw_pred)
 
 	return predict
 
@@ -254,9 +361,9 @@ def _parse_coefficient_term(term_name: str, coefficient: float) -> dict | None:
 	"""Parse a coefficient term name into structured format.
 
 	Supports only degree-2 terms for JavaScript compatibility:
-	- Single: qubits, depth, batches, kshots
-	- Power: qubits^2, depth^2, etc.
-	- Interaction: qubits depth, qubits batches, etc.
+	- Single: qubits, depth, batches, kshots (depth optional)
+	- Power: qubits^2, depth^2, batches^2, etc.
+	- Interaction: qubits depth, qubits batches, batches kshots, etc.
 
 	Higher-order terms (degree-3+) are silently skipped.
 
@@ -294,7 +401,7 @@ def _parse_coefficient_term(term_name: str, coefficient: float) -> dict | None:
 		# More than 2 variables - skip (e.g., "qubits depth batches")
 		return None
 
-	# Single variable terms
+	# Single variable terms (depth is optional but supported)
 	if term_name in ["qubits", "depth", "batches", "kshots"]:
 		return {"type": "single", "variable": term_name, "coefficient": coefficient}
 
