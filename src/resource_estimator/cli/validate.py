@@ -33,16 +33,25 @@ def validate_model_predictions(data, predict_fn, max_error_pct=50.0, max_negativ
 
 	logger.info(f"Validating model on {len(data)} data points...")
 
+	# Detect if model uses depth by checking function signature
+	import inspect
+
+	sig = inspect.signature(predict_fn)
+	uses_depth = len(sig.parameters) == 4  # qubits, depth, batches, shots
+
 	for i, row in data.iterrows():
 		# Extract parameters
 		qubits = row.get("num_qubits") or row.get("qubits")
-		depth = row["depth"]
 		batches = row.get("batches") or row.get("num_circuits")
 		shots = row["shots"]
 		actual = row["qpu_seconds"]
 
-		# Make prediction
-		predicted = predict_fn(qubits, depth, batches, shots)
+		# Make prediction (with or without depth)
+		if uses_depth:
+			depth = row["depth"]
+			predicted = predict_fn(qubits, depth, batches, shots)
+		else:
+			predicted = predict_fn(qubits, batches, shots)
 
 		# Track predictions
 		predictions.append(predicted)
@@ -52,7 +61,10 @@ def validate_model_predictions(data, predict_fn, max_error_pct=50.0, max_negativ
 		if predicted < 0:
 			negative_count += 1
 			logger.error(f"Row {i}: NEGATIVE prediction {predicted:.2f}s (actual: {actual:.2f}s)")
-			logger.error(f"  Parameters: q={qubits}, d={depth}, b={batches}, s={shots}")
+			if uses_depth:
+				logger.error(f"  Parameters: q={qubits}, d={depth}, b={batches}, s={shots}")
+			else:
+				logger.error(f"  Parameters: q={qubits}, b={batches}, s={shots}")
 
 		# Calculate error
 		error_pct = abs(predicted - actual) / actual * 100
@@ -61,7 +73,10 @@ def validate_model_predictions(data, predict_fn, max_error_pct=50.0, max_negativ
 		# Log problematic predictions
 		if error_pct > max_error_pct:
 			logger.warning(f"Row {i}: High error {error_pct:.1f}% (predicted: {predicted:.2f}s, actual: {actual:.2f}s)")
-			logger.warning(f"  Parameters: q={qubits}, d={depth}, b={batches}, s={shots}")
+			if uses_depth:
+				logger.warning(f"  Parameters: q={qubits}, d={depth}, b={batches}, s={shots}")
+			else:
+				logger.warning(f"  Parameters: q={qubits}, b={batches}, s={shots}")
 
 	# Calculate statistics
 	errors_array = np.array(errors)
@@ -153,10 +168,19 @@ def generate_validation_plots(data, predict_fn, output_dir: Path):
 		df["batches"] = df["num_circuits"]
 	df["kshots"] = df["shots"] / 1000.0
 
+	# Detect if model uses depth
+	import inspect
+
+	sig = inspect.signature(predict_fn)
+	uses_depth = len(sig.parameters) == 4
+
 	# Add predictions
 	predictions = []
 	for _, row in df.iterrows():
-		pred = predict_fn(row["qubits"], row["depth"], row["batches"], row["shots"])
+		if uses_depth:
+			pred = predict_fn(row["qubits"], row["depth"], row["batches"], row["shots"])
+		else:
+			pred = predict_fn(row["qubits"], row["batches"], row["shots"])
 		predictions.append(pred)
 	df["predicted_qpu_seconds"] = predictions
 
