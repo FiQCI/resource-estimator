@@ -2,11 +2,14 @@
 Changelog
 =========
 
-Version 0.3.1
+Version 0.4.0
 ==========================
 
-* Add device-specific qubit limits
-* Display maximum qubit count hint in the UI for each device
+* Overhauled VTT Q50 model to use an analytical model without a depth parameters
+  * Not using depth avoids numerical instability and unphysical behavior while maintaining high accuracy
+* Updated UI to remove depth input and reflect new model structure
+* Modify the CLI build process to allow both Helmi (polynomial model) and Q50 (analytical model) approaches
+* Update the documentation.
 
 Version 0.3.0
 ============
