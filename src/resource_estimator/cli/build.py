@@ -162,6 +162,38 @@ def fit_analytical_model(data_path: str, output_dir: str):
 	logger.info(f"Saved plot: {plot_path}")
 	plt.close()
 
+	# Generate public-facing plot (simple actual vs predicted)
+	plt.figure(figsize=(8, 6))
+	plt.scatter(y_true, y_pred, alpha=0.6, edgecolors="k", linewidth=0.5)
+
+	min_val = min(y_true.min(), y_pred.min())
+	max_val = max(y_true.max(), y_pred.max())
+	plt.plot([min_val, max_val], [min_val, max_val], "r--", lw=2, label="Perfect Prediction")
+
+	plt.xlabel("Actual QPU Seconds", fontsize=12)
+	plt.ylabel("Predicted QPU Seconds", fontsize=12)
+	plt.title("VTT Q50", fontsize=14, fontweight="bold")
+
+	metrics_text = f"R² = {r2:.4f}"
+	plt.text(
+		0.05,
+		0.95,
+		metrics_text,
+		transform=plt.gca().transAxes,
+		fontsize=11,
+		verticalalignment="top",
+		bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.8),
+	)
+
+	plt.legend()
+	plt.grid(True, alpha=0.3)
+	plt.tight_layout()
+
+	public_plot_path = output_path / "actual_vs_predicted-vtt-q50.png"
+	plt.savefig(public_plot_path, dpi=300, bbox_inches="tight")
+	logger.info(f"Saved public plot: {public_plot_path}")
+	plt.close()
+
 	return js_config, r2, rmse, mae
 
 
