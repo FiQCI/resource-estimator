@@ -3,9 +3,9 @@
 
 Data is gathered by submitting quantum circuits with varying values for shots, depth, number of circuits in a batch and number of qubits. You can view the data gathered [here](https://github.com/FiQCI/resource-estimator/tree/main/data_analysis/data). QPU seconds is calculated from timestamps returned via IQM Client as explained [here](https://docs.meetiqm.com/iqm-client/integration_guide.html#job-phases-and-related-timestamps). QPU seconds is calculated as `execution_end` - `execution_start`.
 
-The data is analyzed using **polynomial ridge regression models** implemented with scikit-learn's [`Ridge`](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.Ridge.html) and [`PolynomialFeatures`](https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.PolynomialFeatures.html). A separate model is created for each quantum computer:
-- **Helmi**: Degree-2 polynomial
-- **VTT Q50**: Degree-4 polynomial
+The data is analyzed using different modeling approaches depending on the quantum computer:
+- **Helmi**: Polynomial ridge regression model (degree-2) implemented with scikit-learn's [`Ridge`](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.Ridge.html) and [`PolynomialFeatures`](https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.PolynomialFeatures.html)
+- **VTT Q50**: Analytical model.
 
 ## Helmi
 
@@ -21,9 +21,7 @@ Where $kshots = shots/1000$ and $B$ is number of circuits in a batch.
 
 ## VTT Q50
 
-The model for VTT Q50 uses a **degree-4 polynomial regression**. The equation (showing only the most significant terms) is:
-
-**VTT Q50 uses a model:**
+The model for VTT Q50 uses an **analytical model** that tries to capture the scaling of parameters:
 
 $$T = T_{init} + \eta(B) \times B \times shots \times \alpha$$
 
@@ -35,8 +33,7 @@ Where:
 
 Note that the circuit depth does not affect runtime by a noticeable amount. The number of qubits has a minimal impact.
 
-
-The initialization overhead is approximately **1.1-1.2 seconds**.
+The initialization overhead ($T_{init}$) is approximately **1.1-1.2 seconds**.
 
 ![image](./actual_vs_predicted-vtt-q50.png)
 
