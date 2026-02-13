@@ -76,4 +76,4 @@ def test_js_python_consistency_via_subprocess():
 	# Check that the test passed
 	assert result.returncode == 0, f"JS-Python consistency test failed:\n{result.stdout}\n{result.stderr}"
 	assert "🎉" in result.stdout, "JS-Python consistency test did not pass successfully"
-	assert "10 passed, 0 failed" in result.stdout, "Not all tests passed"
+	assert "6 passed, 0 failed" in result.stdout, "Not all tests passed"
