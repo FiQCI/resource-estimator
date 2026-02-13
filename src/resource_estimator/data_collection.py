@@ -427,7 +427,7 @@ def collect_timing_data(
 	# Skip already collected samples when resuming (O(1) lookup with set)
 	skipped = 0
 
-	for idx, params in enumerate(tqdm(samples, desc="Comprehensive sampling")):
+	for params in tqdm(samples, desc="Comprehensive sampling"):
 		if checkpoint_path and _is_already_collected(params, param_set):
 			skipped += 1
 			continue

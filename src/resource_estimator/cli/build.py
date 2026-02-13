@@ -2,6 +2,16 @@
 
 import argparse
 import sys
+import json
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.linear_model import Ridge
+from sklearn.metrics import r2_score, mean_squared_error, mean_absolute_error
+from scipy.optimize import differential_evolution
 
 from resource_estimator.logging_config import setup_logging
 from resource_estimator.model import (
@@ -10,20 +20,371 @@ from resource_estimator.model import (
 	prepare_training_data,
 	train_polynomial_model,
 )
+from resource_estimator.plotting import (
+	plot_actual_vs_predicted_simple,
+	plot_analytical_model_3panel,
+	plot_polynomial_model,
+)
+from resource_estimator.js_export import (
+	format_polynomial_model,
+	format_analytical_model,
+	save_model_config,
+	update_javascript_model_file,
+)
 from resource_estimator.utils import load_data_from_csv, save_model_as_json, update_javascript_model
 
 logger = setup_logging()
+
+
+def analytical_model(params, batches, shots):
+	"""
+	Analytical runtime model using batching efficiency formula.
+
+	T = T_init + efficiency(batches) × batches × shots × throughput
+	where efficiency(batches) = base^min(batches, cap)
+
+	Args:
+		params: [T_init, efficiency_base, throughput_coef, batch_cap]
+		batches: Number of circuit batches
+		shots: Number of shots per circuit
+
+	Returns:
+		Predicted runtime in seconds
+	"""
+	T_init, efficiency_base, throughput_coef, batch_cap = params
+
+	# Clamp efficiency_base to (0, 1) range for stability
+	efficiency_base = max(0.5, min(0.999, efficiency_base))
+
+	# Batch efficiency: exponential decay capped at batch_cap
+	efficiency = np.power(efficiency_base, np.minimum(batches, batch_cap))
+
+	# Runtime calculation
+	runtime = T_init + efficiency * batches * shots * throughput_coef
+
+	return runtime
+
+
+def objective(params, batches, shots, y_true):
+	"""Objective function: minimize RMSE."""
+	y_pred = analytical_model(params, batches, shots)
+	return np.sqrt(mean_squared_error(y_true, y_pred))
+
+
+def fit_analytical_model(data_path: str, output_dir: str):
+	"""Fit analytical model to VTT Q50 data.
+
+	Args:
+		data_path: Path to CSV data file
+		output_dir: Output directory for plots and configuration
+	"""
+	output_path = Path(output_dir)
+	output_path.mkdir(parents=True, exist_ok=True)
+
+	# Load data
+	df = pd.read_csv(data_path)
+	logger.info(f"Loaded {len(df)} samples from {data_path}")
+
+	# Prepare features
+	batches = df["batches"].values
+	shots = df["shots"].values
+	y_true = df["qpu_seconds"].values
+
+	# Optimize using differential evolution
+	logger.info("Optimizing analytical model parameters...")
+	bounds = [
+		(0.5, 5.0),  # T_init: 0.5-5 seconds
+		(0.85, 0.99),  # efficiency_base: decay rate
+		(0.0001, 0.001),  # throughput_coef: shot scaling
+		(5.0, 20.0),  # batch_cap: cap for efficiency
+	]
+
+	result = differential_evolution(
+		objective, bounds, args=(batches, shots, y_true), maxiter=1000, seed=42, polish=True, workers=1
+	)
+
+	optimal_params = result.x
+
+	# Evaluate final model
+	y_pred = analytical_model(optimal_params, batches, shots)
+	r2 = r2_score(y_true, y_pred)
+	rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+	mae = mean_absolute_error(y_true, y_pred)
+
+	logger.info(f"Model performance: R²={r2:.4f}, RMSE={rmse:.2f}s, MAE={mae:.2f}s")
+
+	# Generate JavaScript configuration
+	params_dict = {
+		"T_init": float(optimal_params[0]),
+		"efficiency_base": float(optimal_params[1]),
+		"throughput_coef": float(optimal_params[2]),
+		"batch_cap": float(optimal_params[3]),
+	}
+	js_config = format_analytical_model(params_dict, "VTT Q50", 54)
+
+	# Save JSON configuration
+	config_path = output_path / "vtt-q50_analytical_config.json"
+	save_model_config(js_config, config_path)
+
+	# Calculate efficiency for plotting
+	efficiency = np.power(optimal_params[1], np.minimum(batches, optimal_params[3]))
+
+	# Generate 3-panel technical plot
+	plot_path = output_path / "vtt-q50_analytical_model.png"
+	plot_analytical_model_3panel(y_true, y_pred, batches, efficiency, r2, rmse, mae, plot_path)
+
+	# Generate public-facing plot
+	public_plot_path = output_path / "actual_vs_predicted-vtt-q50.png"
+	plot_actual_vs_predicted_simple(y_true, y_pred, "VTT Q50", r2, public_plot_path)
+
+	return js_config, r2, rmse, mae
+
+
+def build_helmi_model(data_path: str, output_dir: str, max_qubits: int = 5):
+	"""Build Helmi polynomial model with depth parameter.
+
+	Args:
+		data_path: Path to training data CSV
+		output_dir: Output directory for plots and configuration
+		max_qubits: Maximum qubits supported (default: 5)
+	"""
+	output_path = Path(output_dir)
+	output_path.mkdir(parents=True, exist_ok=True)
+
+	device = "helmi"
+	device_name = "Helmi"
+
+	config = {
+		"data_path": data_path,
+		"degree": 3,
+		"alpha": 0.001,
+		"max_qubits": 5,
+		"rename_columns": {"num_qubits": "qubits", "num_circuits": "batches", "shots": "kshots"},
+	}
+
+	# Load data
+	df = pd.read_csv(config["data_path"])
+
+	# Handle different column names
+	if config["rename_columns"]:
+		df = df.rename(columns=config["rename_columns"])
+
+	# Prepare features (WITH depth for Helmi)
+	X = df[["qubits", "depth", "batches", "kshots"]].copy()
+	y = df["qpu_seconds"].values
+
+	# Split data
+	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+	# Create polynomial features
+	poly = PolynomialFeatures(degree=config["degree"], include_bias=False)
+	X_train_poly = poly.fit_transform(X_train)
+	X_test_poly = poly.transform(X_test)
+
+	# Train model
+	model = Ridge(alpha=config["alpha"])
+	model.fit(X_train_poly, y_train)
+
+	# Predictions
+	y_test_pred = model.predict(X_test_poly)
+
+	# Metrics
+	test_r2 = r2_score(y_test, y_test_pred)
+	test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
+	test_mae = mean_absolute_error(y_test, y_test_pred)
+	num_terms = X_train_poly.shape[1]
+
+	# Print metrics
+	logger.info(
+		f"Polynomial model (degree {config['degree']}, alpha {config['alpha']}): R²={test_r2:.4f}, RMSE={test_rmse:.2f}s, {num_terms} terms"
+	)
+
+	# Generate JavaScript configuration for Helmi
+	feature_names = poly.get_feature_names_out(["qubits", "depth", "batches", "kshots"])
+	intercept = model.intercept_
+	coefficients = model.coef_
+
+	# Extract model coefficients
+	coef_dict = {feature: float(coef) for feature, coef in zip(feature_names, coefficients) if abs(coef) > 1e-10}
+	coef_dict["intercept"] = float(intercept)
+
+	# Format for JavaScript export
+	js_config = format_polynomial_model(coef_dict, intercept, device_name, config["max_qubits"])
+
+	# Save JSON configuration
+	config_path = output_path / f"{device}_model_config.json"
+	save_model_config(js_config, config_path)
+
+	# Generate plots
+	plot_path = output_path / f"{device}_polynomial_model.png"
+	plot_polynomial_model(
+		y_test, y_test_pred, device_name, test_r2, test_rmse, test_mae, config["degree"], num_terms, plot_path
+	)
+
+	# Generate public-facing plot
+	public_plot_path = output_path / f"actual_vs_predicted-{device}.png"
+	plot_actual_vs_predicted_simple(y_test, y_test_pred, device_name, test_r2, public_plot_path)
+
+
+def build_vtt_q50_model(output_dir: str):
+	"""Build VTT Q50 analytical model.
+
+	Args:
+		output_dir: Output directory for plots and configuration
+	"""
+	logger.info("=" * 70)
+	logger.info("Building VTT Q50 Analytical Model")
+	logger.info("=" * 70)
+
+	output_path = Path(output_dir)
+	output_path.mkdir(parents=True, exist_ok=True)
+
+	logger.info("\\nVTT Q50")
+	logger.info("-" * 70)
+
+	vtt_data_path = "data_analysis/data/vtt-q50.csv"
+	js_config, r2, rmse, mae = fit_analytical_model(vtt_data_path, str(output_path))
+
+	logger.info("\\n" + "=" * 70)
+	logger.info("VTT Q50 model building complete!")
+	logger.info("=" * 70)
+	logger.info(f"\\nOutputs saved to: {output_path}")
+
+
+def build_all_models(helmi_data_path: str, vtt_data_path: str, output_dir: str):
+	"""Build models for all devices with validation plots.
+
+	Args:
+		helmi_data_path: Path to Helmi training data CSV
+		vtt_data_path: Path to VTT Q50 training data CSV
+		output_dir: Output directory for plots and configurations
+	"""
+	logger.info("Building models for all devices...")
+
+	output_path = Path(output_dir)
+	output_path.mkdir(parents=True, exist_ok=True)
+
+	# Build Helmi model (polynomial with depth)
+	device = "helmi"
+	device_name = "Helmi"
+	logger.info(f"Building {device_name} polynomial model...")
+
+	config = {
+		"data_path": helmi_data_path,
+		"degree": 3,
+		"alpha": 0.001,
+		"max_qubits": 5,
+		"rename_columns": {"num_qubits": "qubits", "num_circuits": "batches", "shots": "kshots"},
+	}
+
+	# Load data
+	df = pd.read_csv(config["data_path"])
+
+	# Handle different column names
+	if config["rename_columns"]:
+		df = df.rename(columns=config["rename_columns"])
+
+	# Prepare features (WITH depth for Helmi)
+	X = df[["qubits", "depth", "batches", "kshots"]].copy()
+	y = df["qpu_seconds"].values
+
+	# Split data
+	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+	# Create polynomial features
+	poly = PolynomialFeatures(degree=config["degree"], include_bias=False)
+	X_train_poly = poly.fit_transform(X_train)
+	X_test_poly = poly.transform(X_test)
+
+	# Train model
+	model = Ridge(alpha=config["alpha"])
+	model.fit(X_train_poly, y_train)
+
+	# Predictions
+	y_train_pred = model.predict(X_train_poly)
+	y_test_pred = model.predict(X_test_poly)
+
+	# Metrics
+	train_r2 = r2_score(y_train, y_train_pred)
+	test_r2 = r2_score(y_test, y_test_pred)
+	train_rmse = np.sqrt(mean_squared_error(y_train, y_train_pred))
+	test_rmse = np.sqrt(mean_squared_error(y_test, y_test_pred))
+	test_mae = mean_absolute_error(y_test, y_test_pred)
+	num_terms = X_train_poly.shape[1]
+	num_negative = np.sum(y_test_pred < 0)
+
+	# Print metrics
+	logger.info(f"  Model: Polynomial (with depth)")
+	logger.info(f"  Degree: {config['degree']}")
+	logger.info(f"  Alpha: {config['alpha']}")
+	logger.info(f"  Train R²: {train_r2:.4f}")
+	logger.info(f"  Test R²: {test_r2:.4f}")
+	logger.info(f"  Train RMSE: {train_rmse:.2f}s")
+	logger.info(f"  Test RMSE: {test_rmse:.2f}s")
+	logger.info(f"  Test MAE: {test_mae:.2f}s")
+	logger.info(f"  Number of terms: {num_terms}")
+	logger.info(f"  Negative predictions: {num_negative}")
+
+	# Generate JavaScript configuration for Helmi
+	feature_names = poly.get_feature_names_out(["qubits", "depth", "batches", "kshots"])
+	intercept = model.intercept_
+	coefficients = model.coef_
+
+	# Extract model coefficients
+	coef_dict = {feature: float(coef) for feature, coef in zip(feature_names, coefficients) if abs(coef) > 1e-10}
+	coef_dict["intercept"] = float(intercept)
+
+	# Format for JavaScript export
+	js_config = format_polynomial_model(coef_dict, intercept, device_name, config["max_qubits"])
+
+	# Save JSON configuration
+	config_path = output_path / f"{device}_model_config.json"
+	save_model_config(js_config, config_path)
+	logger.info(f"  Config saved: {config_path}")
+
+	# Generate plots
+	plot_path = output_path / f"{device}_final_model.png"
+	plot_polynomial_model(
+		y_test, y_test_pred, device_name, test_r2, test_rmse, test_mae, config["degree"], num_terms, plot_path
+	)
+
+	# Generate public-facing plot
+	public_plot_path = output_path / f"actual_vs_predicted-{device}.png"
+	plot_actual_vs_predicted_simple(y_test, y_test_pred, device_name, test_r2, public_plot_path)
+
+	# Build VTT Q50 analytical model
+	logger.info("Building VTT Q50 analytical model...")
+	_, r2, rmse, mae = fit_analytical_model(vtt_data_path, str(output_path))
+
+	logger.info(f"All models saved to: {output_path}")
 
 
 def main():
 	"""Main entry point for model building."""
 	parser = argparse.ArgumentParser(description="Build quantum resource estimation model")
 	parser.add_argument("--data", type=str, required=True, help="Input CSV file")
-	parser.add_argument("--device", type=str, required=True, help="Device identifier (e.g., 'helmi')")
+	parser.add_argument("--device", type=str, required=True, help="Device identifier (e.g., 'helmi', 'vtt-q50')")
 	parser.add_argument("--device-name", type=str, help="Display name (defaults to device ID)")
+	parser.add_argument(
+		"--model-type",
+		type=str,
+		choices=["polynomial", "analytical"],
+		default="polynomial",
+		help="Model type: 'polynomial' or 'analytical' (default: polynomial)",
+	)
+	parser.add_argument(
+		"--output-dir",
+		type=str,
+		default="plots/final-models",
+		help="Output directory for plots and configs (default: plots/final-models)",
+	)
 	parser.add_argument("--output-json", type=str, help="Output JSON file")
-	parser.add_argument("--degree", type=int, default=3, help="Polynomial degree (default: 3)")
-	parser.add_argument("--alpha", type=float, default=0.01, help="Regularization strength (default: 0.01)")
+	parser.add_argument(
+		"--degree", type=int, default=3, help="Polynomial degree (default: 3, only for polynomial models)"
+	)
+	parser.add_argument(
+		"--alpha", type=float, default=0.01, help="Regularization strength (default: 0.01, only for polynomial models)"
+	)
 	parser.add_argument(
 		"--no-log-transform",
 		action="store_true",
@@ -34,7 +395,44 @@ def main():
 		type=str,
 		help="Path to ResourceEstimatorModel.js to automatically update (e.g., src/utils/ResourceEstimatorModel.js)",
 	)
+	parser.add_argument("--max-qubits", type=int, help="Maximum qubits for device (optional)")
 	args = parser.parse_args()
+
+	# Handle analytical model building
+	if args.model_type == "analytical":
+		try:
+			output_path = Path(args.output_dir)
+			output_path.mkdir(parents=True, exist_ok=True)
+
+			logger.info(f"Building analytical model for {args.device}...")
+			js_config, r2, rmse, mae = fit_analytical_model(args.data, args.output_dir)
+
+			# Update device name and max_qubits if provided
+			if args.device_name:
+				js_config["name"] = args.device_name
+			if args.max_qubits:
+				js_config["max_qubits"] = args.max_qubits
+
+			# Save with device-specific name
+			config_path = output_path / f"{args.device}_analytical_config.json"
+			with open(config_path, "w") as f:
+				json.dump(js_config, f, indent=2)
+			logger.info(f"\nConfig saved: {config_path}")
+
+			# Update frontend if requested
+			if args.update_frontend:
+				# Update frontend JavaScript file with config
+				update_javascript_model_file(Path(args.update_frontend), args.device, js_config)
+				logger.info(f"Updated frontend model in {args.update_frontend}")
+
+			logger.info("\nAnalytical model building completed successfully!")
+			return
+
+		except Exception as e:
+			logger.error(f"Error building analytical model: {e}", exc_info=True)
+			sys.exit(1)
+
+	# Validate required arguments for polynomial model
 
 	try:
 		# Load and prepare data
@@ -66,14 +464,10 @@ def main():
 
 		# Save JSON if requested
 		if args.output_json:
-			from pathlib import Path
-
 			save_model_as_json(coefficients, metrics, Path(args.output_json))
 
 		# Update frontend JavaScript file if requested
 		if args.update_frontend:
-			from pathlib import Path
-
 			update_javascript_model(Path(args.update_frontend), args.device, js_code)
 			logger.info(f"Updated frontend model in {args.update_frontend}")
 
