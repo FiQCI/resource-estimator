@@ -71,12 +71,21 @@ def objective(params, batches, shots, y_true):
 	return np.sqrt(mean_squared_error(y_true, y_pred))
 
 
-def fit_analytical_model(data_path: str, output_dir: str):
-	"""Fit analytical model to VTT Q50 data.
+def fit_analytical_model(
+	data_path: str,
+	output_dir: str,
+	device_name: str = "VTT Q50",
+	device_key: str = "vtt-q50",
+	max_qubits: int = 54,
+):
+	"""Fit analytical model to quantum device data.
 
 	Args:
 		data_path: Path to CSV data file
 		output_dir: Output directory for plots and configuration
+		device_name: Display name for the device (e.g. "VTT Q50")
+		device_key: Identifier used for filenames (e.g. "vtt-q50")
+		max_qubits: Maximum qubits supported by the device
 	"""
 	output_path = Path(output_dir)
 	output_path.mkdir(parents=True, exist_ok=True)
@@ -120,22 +129,22 @@ def fit_analytical_model(data_path: str, output_dir: str):
 		"throughput_coef": float(optimal_params[2]),
 		"batch_cap": float(optimal_params[3]),
 	}
-	js_config = format_analytical_model(params_dict, "VTT Q50", 54)
+	js_config = format_analytical_model(params_dict, device_name, max_qubits)
 
 	# Save JSON configuration
-	config_path = output_path / "vtt-q50_analytical_config.json"
+	config_path = output_path / f"{device_key}_analytical_config.json"
 	save_model_config(js_config, config_path)
 
 	# Calculate efficiency for plotting
 	efficiency = np.power(optimal_params[1], np.minimum(batches, optimal_params[3]))
 
 	# Generate 3-panel technical plot
-	plot_path = output_path / "vtt-q50_analytical_model.png"
+	plot_path = output_path / f"{device_key}_analytical_model.png"
 	plot_analytical_model_3panel(y_true, y_pred, batches, efficiency, r2, rmse, mae, plot_path)
 
 	# Generate public-facing plot
-	public_plot_path = output_path / "actual_vs_predicted-vtt-q50.png"
-	plot_actual_vs_predicted_simple(y_true, y_pred, "VTT Q50", r2, public_plot_path)
+	public_plot_path = output_path / f"actual_vs_predicted-{device_key}.png"
+	plot_actual_vs_predicted_simple(y_true, y_pred, device_name, r2, public_plot_path)
 
 	return js_config, r2, rmse, mae
 
@@ -404,14 +413,12 @@ def main():
 			output_path = Path(args.output_dir)
 			output_path.mkdir(parents=True, exist_ok=True)
 
+			device_name = args.device_name or args.device.replace("-", " ").title()
+			max_qubits = args.max_qubits or 54
 			logger.info(f"Building analytical model for {args.device}...")
-			js_config, r2, rmse, mae = fit_analytical_model(args.data, args.output_dir)
-
-			# Update device name and max_qubits if provided
-			if args.device_name:
-				js_config["name"] = args.device_name
-			if args.max_qubits:
-				js_config["max_qubits"] = args.max_qubits
+			js_config, r2, rmse, mae = fit_analytical_model(
+				args.data, args.output_dir, device_name=device_name, device_key=args.device, max_qubits=max_qubits
+			)
 
 			# Save with device-specific name
 			config_path = output_path / f"{args.device}_analytical_config.json"
