@@ -38,8 +38,33 @@ const DEVICE_PARAMS = {
 		efficiency_base: 0.9859309839575585,
 		throughput_coef: 0.0006252263363799867,
 		batch_cap: 19.29350870051621
-	}
-};
+	},
+	'aalto-q20': {
+		name: 'Aalto Q20',
+		max_qubits: 20,
+		logTransform: true,
+		epsilon: 0.001000,
+		intercept: -1.520617,
+		terms: [
+			{type: 'single', variable: 'batches', coefficient: 0.485211},
+			{type: 'single', variable: 'kshots', coefficient: 0.264960},
+			{type: 'single', variable: 'qubits', coefficient: 0.087562},
+			{type: 'power', variable: 'batches', coefficient: -0.027389, exponent: 2},
+			{type: 'interaction', variables: ['qubits', 'batches'], coefficient: -0.017493},
+			{type: 'power', variable: 'qubits', coefficient: -0.008137, exponent: 2},
+			{type: 'power', variable: 'kshots', coefficient: -0.007475, exponent: 2},
+			{type: 'single', variable: 'depth', coefficient: -0.004688},
+			{type: 'interaction', variables: ['qubits', 'depth'], coefficient: 0.003947},
+			{type: 'interaction', variables: ['qubits', 'kshots'], coefficient: 0.003409},
+			{type: 'interaction', variables: ['batches', 'kshots'], coefficient: 0.002201},
+			{type: 'interaction', variables: ['depth', 'batches'], coefficient: 0.001949},
+			{type: 'interaction', variables: ['depth', 'kshots'], coefficient: -0.001455},
+			{type: 'power', variable: 'batches', coefficient: 0.000549, exponent: 3},
+			{type: 'power', variable: 'qubits', coefficient: 0.000170, exponent: 3},
+			{type: 'power', variable: 'depth', coefficient: -0.000104, exponent: 2},
+			{type: 'power', variable: 'kshots', coefficient: 0.000073, exponent: 3},
+		]
+	}};
 
 /**
  * Calculate a single polynomial term value.
@@ -140,8 +165,7 @@ function calculateQPUSeconds(device, params) {
 	}
 
 	// Apply log-transform if needed
-	if (deviceConfig.use_log_transform) {
-		// Model was trained on log(y), so we need to transform back
+	if (deviceConfig.logTransform) {
 		prediction = Math.exp(prediction) - deviceConfig.epsilon;
 	}
 
