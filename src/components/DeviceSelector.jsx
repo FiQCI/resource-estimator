@@ -134,7 +134,7 @@ const DeviceSelector = ({ selectedDevice, onDeviceSelect }) => {
 				/>
 				<DeviceCard
 					title="Aalto Q20"
-					image="./FiQCI-logo.png"
+					image="./aalto-q20.jpg"
 					isSelected={selectedDevice === 'aalto-q20'}
 					onClick={() => onDeviceSelect('aalto-q20')}
 				/>
