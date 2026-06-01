@@ -2,7 +2,6 @@
 
 import argparse
 import sys
-import json
 from pathlib import Path
 
 import numpy as np
@@ -102,11 +101,7 @@ def objective_qubit(params, qubits, batches, shots, y_true):
 
 
 def fit_analytical_model(
-	data_path: str,
-	output_dir: str,
-	device_name: str = "VTT Q50",
-	device_key: str = "vtt-q50",
-	max_qubits: int = 54,
+	data_path: str, output_dir: str, device_name: str = "VTT Q50", device_key: str = "vtt-q50", max_qubits: int = 54
 ):
 	"""Fit analytical model to quantum device data.
 
@@ -180,11 +175,7 @@ def fit_analytical_model(
 
 
 def fit_analytical_qubit_model(
-	data_path: str,
-	output_dir: str,
-	device_name: str = "Aalto Q20",
-	device_key: str = "aalto-q20",
-	max_qubits: int = 20,
+	data_path: str, output_dir: str, device_name: str = "Aalto Q20", device_key: str = "aalto-q20", max_qubits: int = 20
 ):
 	"""Fit qubit-scaled analytical model.
 
@@ -210,16 +201,22 @@ def fit_analytical_qubit_model(
 
 	logger.info("Optimizing qubit-scaled analytical model parameters...")
 	bounds = [
-		(0.0, 5.0),    # T_init
-		(0.85, 0.999), # efficiency_base
+		(0.0, 5.0),  # T_init
+		(0.85, 0.999),  # efficiency_base
 		(1e-5, 1e-3),  # throughput_base
 		(1e-7, 1e-4),  # throughput_qubit
-		(3.0, 30.0),   # batch_cap
+		(3.0, 30.0),  # batch_cap
 	]
 
 	result = differential_evolution(
-		objective_qubit, bounds, args=(qubits, batches, shots, y_true),
-		maxiter=5000, seed=42, polish=True, workers=1, tol=1e-8
+		objective_qubit,
+		bounds,
+		args=(qubits, batches, shots, y_true),
+		maxiter=5000,
+		seed=42,
+		polish=True,
+		workers=1,
+		tol=1e-8,
 	)
 
 	optimal_params = result.x
