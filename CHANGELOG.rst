@@ -2,11 +2,19 @@
 Changelog
 =========
 
-Version 0.5.2
+Version 0.5.3
 ==========================
 
 * Dynamically convert QPU seconds to hours or minutes in the UI for better readability.
 * Separate total QPU hours by device in the basket summary.
+
+Version 0.5.2
+==========================
+
+* Some performance improvements:
+  * Compress images
+  * Move images from `public` to `src/assets` to allow for better bundling and caching with Vite.
+
 
 Version 0.5.1
 ==========================
