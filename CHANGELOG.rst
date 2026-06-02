@@ -2,6 +2,14 @@
 Changelog
 =========
 
+Version 0.5.2
+==========================
+
+* Some performance improvements:
+  * Compress images
+  * Move images from `public` to `src/assets` to allow for better bundling and caching with Vite.
+
+
 
 Version 0.5.1
 ==========================

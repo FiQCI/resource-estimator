@@ -1,4 +1,6 @@
 import React from 'react';
+import vttQ50Image from '../assets/vtt-q50.jpg';
+import aaltoQ20Image from '../assets/aalto-q20.jpg';
 
 const fontFamily = '-apple-system,BlinkMacSystemFont,"Roboto","Segoe UI","Helvetica Neue","Lucida Grande",Arial,sans-serif';
 
@@ -122,13 +124,13 @@ const DeviceSelector = ({ selectedDevice, onDeviceSelect }) => {
 			<div style={gridStyle}>
 				<DeviceCard
 					title="VTT Q50"
-					image="./vtt-q50.jpg"
+					image={vttQ50Image}
 					isSelected={selectedDevice === 'vtt-q50'}
 					onClick={() => onDeviceSelect('vtt-q50')}
 				/>
 				<DeviceCard
 					title="Aalto Q20"
-					image="./aalto-q20.jpg"
+					image={aaltoQ20Image}
 					isSelected={selectedDevice === 'aalto-q20'}
 					onClick={() => onDeviceSelect('aalto-q20')}
 				/>
