@@ -90,12 +90,11 @@ const ParameterInput = ({ label, value, onChange, hint, error, disabled = false 
 };
 
 const ResourceEstimator = () => {
-	const [selectedDevice, setSelectedDevice] = useState('helmi');
+	const [selectedDevice, setSelectedDevice] = useState('vtt-q50');
 	const [formData, setFormData] = useState({
 		batches: 1,
 		shots: 1000,
-		qubits: 5,
-		depth: 1
+		qubits: 5
 	});
 
 	const [estimatedQPU, setEstimatedQPU] = useState(null);
@@ -157,9 +156,6 @@ const ResourceEstimator = () => {
 	const calculateQPU = () => {
 		// Validate all fields first
 		const requiredFields = ['batches', 'shots', 'qubits'];
-		if (selectedDevice === 'helmi') {
-			requiredFields.push('depth');
-		}
 		requiredFields.forEach(field => validateField(field, formData[field]));
 
 		// Check if there are any validation errors
@@ -175,11 +171,6 @@ const ResourceEstimator = () => {
 			batches: parseInt(formData.batches, 10),
 			shots: parseInt(formData.shots, 10),
 			qubits: parseInt(formData.qubits, 10)
-		}
-
-		// Add depth for Helmi
-		if (selectedDevice === 'helmi') {
-			numericFormData.depth = parseInt(formData.depth, 10);
 		}
 
 		// Calculate QPU seconds using our model
@@ -340,14 +331,6 @@ const ResourceEstimator = () => {
 							error={validationErrors.qubits}
 						/>
 
-						<ParameterInput
-							label="Circuit Depth"
-							value={formData.depth}
-							onChange={(value) => handleInputChange('depth', value)}
-							hint={selectedDevice === 'helmi' ? 'Number of layers in circuit' : `Not used for ${DEVICE_PARAMS[selectedDevice].name}`}
-							error={validationErrors.depth}
-							disabled={selectedDevice !== 'helmi'}
-						/>
 					</div>
 
 					<div style={{marginTop: '1rem', textAlign: 'center'}}>
