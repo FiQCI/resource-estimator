@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatQPUTime } from '../utils/formatQPUTime';
 
 const fontFamily = '-apple-system,BlinkMacSystemFont,"Roboto","Segoe UI","Helvetica Neue","Lucida Grande",Arial,sans-serif';
 
@@ -137,7 +138,7 @@ const HistoryPanel = ({ history, onAddToBasket, onClearHistory }) => {
 								Device: {item.deviceName}
 							</span>
 							<span style={paramStyle}>Circuits: {item.params.batches}</span>
-							<span style={paramStyle}>Depth: {item.params.depth}</span>
+
 							<span style={paramStyle}>Shots: {item.params.shots}</span>
 							<span style={paramStyle}>Qubits: {item.params.qubits}</span>
 						</div>
@@ -152,8 +153,8 @@ const HistoryPanel = ({ history, onAddToBasket, onClearHistory }) => {
 								fontWeight: '500',
 								color: '#333333'
 							}}>
-								<span style={{fontSize: '0.85rem', color: '#333333', marginRight: '0.35rem'}}>QPU Seconds:</span>
-								{item.qpuSeconds}
+								<span style={{fontSize: '0.85rem', color: '#333333', marginRight: '0.35rem'}}>Estimated:</span>
+								{formatQPUTime(item.qpuSeconds).label}
 							</div>
 
 							<button
