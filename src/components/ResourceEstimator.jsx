@@ -4,6 +4,7 @@ import HistoryPanel from './HistoryPanel';
 import BasketPanel from './BasketPanel';
 import JobHistoryManager from '../utils/JobHistoryManager';
 import { DEVICE_PARAMS, calculateQPUSeconds } from '../utils/ResourceEstimatorModel';
+import { formatQPUTime } from '../utils/formatQPUTime';
 
 const fontFamily = '-apple-system,BlinkMacSystemFont,"Roboto","Segoe UI","Helvetica Neue","Lucida Grande",Arial,sans-serif';
 
@@ -362,15 +363,15 @@ const ResourceEstimator = () => {
 									marginBottom: '0.35rem',
 									fontFamily: fontFamily
 								}}>
-									Estimated QPU Seconds
-								</div>
-								<div style={{
-									fontSize: '2.1rem',
-									fontWeight: 'bold',
-									color: '#333333',
-									fontFamily: fontFamily
-								}}>
-									{estimatedQPU}
+								Estimated {formatQPUTime(estimatedQPU).unit}
+							</div>
+							<div style={{
+								fontSize: '2.1rem',
+								fontWeight: 'bold',
+								color: '#333333',
+								fontFamily: fontFamily
+							}}>
+								{formatQPUTime(estimatedQPU).value}
 								</div>
 							</div>
 						</div>

@@ -1,10 +1,15 @@
 import React from 'react';
+import { formatQPUTime, toQPUHours } from '../utils/formatQPUTime';
 
 const fontFamily = '-apple-system,BlinkMacSystemFont,"Roboto","Segoe UI","Helvetica Neue","Lucida Grande",Arial,sans-serif';
 
 const BasketPanel = ({ basket, onRemoveFromBasket, onClearBasket }) => {
-	// Calculate total QPU seconds
-	const totalQPUSeconds = basket.reduce((total, item) => total + parseFloat(item.qpuSeconds), 0).toFixed(2);
+	// Per-device QPU hours totals
+	const deviceTotals = basket.reduce((acc, item) => {
+		const key = item.deviceName || 'Unknown Device';
+		acc[key] = (acc[key] || 0) + parseFloat(item.qpuSeconds);
+		return acc;
+	}, {});
 
 	// Basket panel container styles
 	const containerStyle = {
@@ -110,11 +115,10 @@ const BasketPanel = ({ basket, onRemoveFromBasket, onClearBasket }) => {
 									Device: {item.deviceName}
 								</span>
 								<span style={paramStyle}>C: {item.params.batches}</span>
-								<span style={paramStyle}>D: {item.params.depth}</span>
 								<span style={paramStyle}>S: {item.params.shots}</span>
 								<span style={paramStyle}>Q: {item.params.qubits}</span>
 								<span style={{...paramStyle, backgroundColor: '#f0f7ff', border: '1px solid #d0e3ff', color: '#333333'}}>
-									QPU: {item.qpuSeconds}s
+									{formatQPUTime(item.qpuSeconds).label}
 								</span>
 							</div>
 						</div>
@@ -129,12 +133,15 @@ const BasketPanel = ({ basket, onRemoveFromBasket, onClearBasket }) => {
 								border: '1px solid #d0e3ff',
 								display: 'inline-block'
 							}}>
-								<div style={{fontSize: '0.9rem', color: '#333333', marginBottom: '0.35rem'}}>
-									Total QPU Seconds
+								<div style={{fontSize: '0.9rem', color: '#333333', marginBottom: '0.5rem', fontWeight: '500'}}>
+									QPU Hours per Device
 								</div>
-								<div style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#333333'}}>
-									{totalQPUSeconds}
-								</div>
+								{Object.entries(deviceTotals).map(([deviceName, totalSeconds]) => (
+									<div key={deviceName} style={{display: 'flex', justifyContent: 'space-between', gap: '1.5rem', fontSize: '1.05rem', color: '#333333', marginBottom: '0.25rem'}}>
+										<span>{deviceName} QPU hours:</span>
+										<span style={{fontWeight: 'bold'}}>{toQPUHours(totalSeconds)}</span>
+									</div>
+								))}
 							</div>
 						</div>
 
