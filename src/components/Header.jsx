@@ -1,5 +1,5 @@
 import React from 'react';
-import fiqciLogo from '/FiQCI-logo.png';
+import fiqciLogo from '../assets/FiQCI-logo.png';
 import { DocumentationButton } from './Documentation';
 
 const Header = ({ onOpenDocumentation }) => {
@@ -34,7 +34,9 @@ const Header = ({ onOpenDocumentation }) => {
 					<img
 						src={fiqciLogo}
 						alt="FiQCI Logo"
-						style={{height: '2.5rem'}}
+						width="340"
+						height="100"
+						style={{height: '2.5rem', width: 'auto'}}
 					/>
 				</div>
 				<h1 style={{
