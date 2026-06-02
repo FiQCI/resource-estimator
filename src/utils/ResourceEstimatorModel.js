@@ -6,7 +6,8 @@
  * Contains parameters and calculation model for different quantum devices
  *
  * Helmi: Degree-2 polynomial (original model)
- * VTT Q50: Degree-4 polynomial WITHOUT depth parameter, R² = 0.9715
+ * VTT Q50: Analytical model, R² = 0.9715
+ * Aalto Q20: Qubit-scaled analytical model, CV R² = 0.9798
  */
 const DEVICE_PARAMS = {
 	helmi: {
@@ -38,6 +39,16 @@ const DEVICE_PARAMS = {
 		efficiency_base: 0.9859309839575585,
 		throughput_coef: 0.0006252263363799867,
 		batch_cap: 19.29350870051621
+	},
+	'aalto-q20': {
+		name: "Aalto Q20",
+		max_qubits: 20,
+		model_type: "analytical",
+		T_init: 1.2252838370600004e-07,
+		efficiency_base: 0.9989999903706621,
+		throughput_coef: 0.0002954914740018577,
+		throughput_qubit_coef: 1.3699793861798854e-05,
+		batch_cap: 3.0000119840851145
 	}
 };
 
@@ -70,10 +81,10 @@ function calculateTerm(termName, values) {
 }
 
 /**
- * Calculate QPU seconds using polynomial model.
+ * Calculate QPU seconds for a given device and parameters.
  *
- * @param {string} device - Device identifier ('helmi' or 'vtt-q50')
- * @param {Object} params - Dictionary with keys 'batches', 'shots', and 'qubits'
+ * @param {string} device - Device identifier ('helmi', 'vtt-q50', 'aalto-q20')
+ * @param {Object} params - Dictionary with keys 'batches', 'shots', 'qubits', and optionally 'depth'
  * @returns {number} Estimated QPU seconds (always positive)
  */
 function calculateQPUSeconds(device, params) {
@@ -82,16 +93,13 @@ function calculateQPUSeconds(device, params) {
 		return 0;
 	}
 
-	// Get device configuration
 	const deviceConfig = DEVICE_PARAMS[device];
 
-	// Parse parameters
 	const batches = parseInt(params.batches, 10) || 1;
 	const shots = parseInt(params.shots, 10) || 1000;
 	const qubits = parseInt(params.qubits, 10) || 2;
 	const depth = parseInt(params.depth, 10) || 1;
 
-	// Create feature values
 	const kshots = shots / 1000.0;
 	const featureValues = {
 		qubits: qubits,
@@ -100,25 +108,25 @@ function calculateQPUSeconds(device, params) {
 		depth: depth
 	};
 
-	// Calculate prediction: intercept + sum of (coefficient * term_value)
-	let prediction = deviceConfig.intercept;
+	let prediction;
 
-	// Handle analytical model (VTT Q50)
 	if (deviceConfig.model_type === 'analytical') {
-		// Analytical formula: T = T_init + efficiency(batches) × batches × shots × throughput
 		const efficiency = Math.pow(
 			deviceConfig.efficiency_base,
 			Math.min(batches, deviceConfig.batch_cap)
 		);
+		// throughput_qubit_coef is optional; defaults to 0 for devices without qubit scaling
+		const throughput = deviceConfig.throughput_coef +
+			(deviceConfig.throughput_qubit_coef || 0) * qubits;
 
 		prediction = deviceConfig.T_init +
-			efficiency * batches * shots * deviceConfig.throughput_coef;
+			efficiency * batches * shots * throughput;
 	} else {
-		// Polynomial model (Helmi)
+		// Polynomial model
+		prediction = deviceConfig.intercept;
 		for (const term of deviceConfig.terms) {
 			let termValue;
 
-			// Handle old format (Helmi) with type/variable/variables
 			if (term.type) {
 				if (term.type === 'single') {
 					termValue = featureValues[term.variable];
@@ -131,7 +139,6 @@ function calculateQPUSeconds(device, params) {
 					}
 				}
 			} else {
-				// Handle new format with name
 				termValue = calculateTerm(term.name, featureValues);
 			}
 
@@ -139,16 +146,7 @@ function calculateQPUSeconds(device, params) {
 		}
 	}
 
-	// Apply log-transform if needed
-	if (deviceConfig.use_log_transform) {
-		// Model was trained on log(y), so we need to transform back
-		prediction = Math.exp(prediction) - deviceConfig.epsilon;
-	}
-
-	// Ensure positive result
 	prediction = Math.max(0.0, prediction);
-
-	// Return rounded to 2 decimal places
 	return parseFloat(prediction.toFixed(2));
 }
 

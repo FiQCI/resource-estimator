@@ -69,6 +69,34 @@ def format_analytical_model(params: Dict[str, float], device_name: str, max_qubi
 	return config
 
 
+def format_analytical_qubit_model(params: Dict[str, float], device_name: str, max_qubits: int) -> Dict[str, Any]:
+	"""Format qubit-scaled analytical model for JavaScript export.
+
+	Formula: T = T_init + eff(batches) * batches * shots * (throughput_coef + throughput_qubit_coef * qubits)
+
+	Args:
+		params: Model parameters (T_init, efficiency_base, throughput_coef, throughput_qubit_coef, batch_cap)
+		device_name: Name of the device
+		max_qubits: Maximum number of qubits
+
+	Returns:
+		JavaScript configuration dictionary
+	"""
+	config = {
+		"name": device_name,
+		"max_qubits": max_qubits,
+		"model_type": "analytical",
+		"T_init": params["T_init"],
+		"efficiency_base": params["efficiency_base"],
+		"throughput_coef": params["throughput_coef"],
+		"throughput_qubit_coef": params["throughput_qubit_coef"],
+		"batch_cap": params["batch_cap"],
+	}
+
+	logger.info(f"Formatted analytical qubit model for {device_name}")
+	return config
+
+
 def save_model_config(config: Dict[str, Any], output_path: Path) -> None:
 	"""Save model configuration to JSON file.
 

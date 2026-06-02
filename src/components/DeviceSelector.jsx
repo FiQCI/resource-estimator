@@ -100,7 +100,7 @@ const DeviceSelector = ({ selectedDevice, onDeviceSelect }) => {
 
 	const gridStyle = {
 		display: 'grid',
-		gridTemplateColumns: 'repeat(2, 1fr)',
+		gridTemplateColumns: 'repeat(3, 1fr)',
 		gap: '1.4rem',
 		width: '100%',
 		margin: '0 auto',
@@ -131,6 +131,12 @@ const DeviceSelector = ({ selectedDevice, onDeviceSelect }) => {
 					image="./vtt-q50.jpg"
 					isSelected={selectedDevice === 'vtt-q50'}
 					onClick={() => onDeviceSelect('vtt-q50')}
+				/>
+				<DeviceCard
+					title="Aalto Q20"
+					image="./aalto-q20.jpg"
+					isSelected={selectedDevice === 'aalto-q20'}
+					onClick={() => onDeviceSelect('aalto-q20')}
 				/>
 			</div>
 		</div>

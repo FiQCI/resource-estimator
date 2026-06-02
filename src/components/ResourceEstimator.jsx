@@ -344,9 +344,9 @@ const ResourceEstimator = () => {
 							label="Circuit Depth"
 							value={formData.depth}
 							onChange={(value) => handleInputChange('depth', value)}
-							hint={selectedDevice === 'helmi' ? 'Number of layers in circuit' : 'Not used for VTT Q50'}
+							hint={selectedDevice === 'helmi' ? 'Number of layers in circuit' : `Not used for ${DEVICE_PARAMS[selectedDevice].name}`}
 							error={validationErrors.depth}
-							disabled={selectedDevice === 'vtt-q50'}
+							disabled={selectedDevice !== 'helmi'}
 						/>
 					</div>
 
