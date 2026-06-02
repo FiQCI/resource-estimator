@@ -2,6 +2,13 @@
 Changelog
 =========
 
+
+Version 0.5.1
+==========================
+
+* Remove Helmi device from UI and documentation (Helmi model is no longer maintained or updated).
+* Make VTT Q50 as the default device in the UI and CLI (previously Helmi was the default).
+
 Version 0.5.0
 ==========================
 

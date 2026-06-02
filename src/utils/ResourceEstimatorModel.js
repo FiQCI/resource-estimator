@@ -5,32 +5,10 @@
  * Device model configuration
  * Contains parameters and calculation model for different quantum devices
  *
- * Helmi: Degree-2 polynomial (original model)
  * VTT Q50: Analytical model, R² = 0.9715
  * Aalto Q20: Qubit-scaled analytical model, CV R² = 0.9798
  */
 const DEVICE_PARAMS = {
-	helmi: {
-		name: 'Helmi',
-		max_qubits: 5,
-		model_type: 'polynomial',
-		intercept: 2.361885,
-		terms: [
-			{type: 'interaction', variables: ['batches', 'kshots'], coefficient: 0.432804},
-			{type: 'single', variable: 'qubits', coefficient: 0.178790},
-			{type: 'single', variable: 'batches', coefficient: -0.027707},
-			{type: 'single', variable: 'kshots', coefficient: -0.025819},
-			{type: 'interaction', variables: ['qubits', 'batches'], coefficient: 0.009231},
-			{type: 'interaction', variables: ['qubits', 'kshots'], coefficient: 0.007381},
-			{type: 'power', variable: 'qubits', coefficient: -0.006612, exponent: 2},
-			{type: 'single', variable: 'depth', coefficient: 0.003655},
-			{type: 'interaction', variables: ['qubits', 'depth'], coefficient: -0.001835},
-			{type: 'power', variable: 'kshots', coefficient: 0.000113, exponent: 2},
-			{type: 'interaction', variables: ['depth', 'batches'], coefficient: -0.000107},
-			{type: 'power', variable: 'batches', coefficient: 0.000104, exponent: 2},
-			{type: 'interaction', variables: ['depth', 'kshots'], coefficient: 0.000014}
-		]
-	},
 	'vtt-q50': {
 		name: "VTT Q50",
 		max_qubits: 54,
@@ -83,8 +61,8 @@ function calculateTerm(termName, values) {
 /**
  * Calculate QPU seconds for a given device and parameters.
  *
- * @param {string} device - Device identifier ('helmi', 'vtt-q50', 'aalto-q20')
- * @param {Object} params - Dictionary with keys 'batches', 'shots', 'qubits', and optionally 'depth'
+ * @param {string} device - Device identifier ('vtt-q50', 'aalto-q20')
+ * @param {Object} params - Dictionary with keys 'batches', 'shots', and 'qubits'
  * @returns {number} Estimated QPU seconds (always positive)
  */
 function calculateQPUSeconds(device, params) {
@@ -127,6 +105,7 @@ function calculateQPUSeconds(device, params) {
 		for (const term of deviceConfig.terms) {
 			let termValue;
 
+			// Handle old format with type/variable/variables
 			if (term.type) {
 				if (term.type === 'single') {
 					termValue = featureValues[term.variable];

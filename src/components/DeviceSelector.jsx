@@ -100,7 +100,7 @@ const DeviceSelector = ({ selectedDevice, onDeviceSelect }) => {
 
 	const gridStyle = {
 		display: 'grid',
-		gridTemplateColumns: 'repeat(3, 1fr)',
+		gridTemplateColumns: 'repeat(2, 1fr)',
 		gap: '1.4rem',
 		width: '100%',
 		margin: '0 auto',
@@ -120,12 +120,6 @@ const DeviceSelector = ({ selectedDevice, onDeviceSelect }) => {
 				Select Quantum Computer
 			</h2>
 			<div style={gridStyle}>
-				<DeviceCard
-					title="Helmi"
-					image="./helmi.png"
-					isSelected={selectedDevice === 'helmi'}
-					onClick={() => onDeviceSelect('helmi')}
-				/>
 				<DeviceCard
 					title="VTT Q50"
 					image="./vtt-q50.jpg"
