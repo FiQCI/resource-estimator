@@ -6,6 +6,7 @@ Data is gathered by submitting quantum circuits with varying values for shots, d
 The data is analyzed using different modeling approaches depending on the quantum computer:
 - **Helmi**: Polynomial ridge regression model (degree-2) implemented with scikit-learn's [`Ridge`](https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.Ridge.html) and [`PolynomialFeatures`](https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.PolynomialFeatures.html)
 - **VTT Q50**: Analytical model.
+- **Aalto Q20**: Qubit-scaled analytical model (cross-validated R² = 0.98).
 
 ## Helmi
 
@@ -37,6 +38,29 @@ The initialization overhead ($T_{init}$) is approximately **1.1-1.2 seconds**.
 
 ![image](./actual_vs_predicted-vtt-q50.png)
 
+## Aalto Q20
+
+The model for Aalto Q20 uses a **qubit-scaled analytical model** that extends the standard analytical formula by making the throughput coefficient dependent on qubit count:
+
+$$T = T_{init} + \eta(B) \times B \times shots \times (\alpha_{base} + \alpha_q \times qubits)$$
+
+Where:
+- $T_{init} \approx 0$ seconds (negligible baseline overhead)
+- $\eta(B) = ~0.999^{\min(B, 3)} \approx 1$ (minimal batching efficiency decay)
+- $\alpha_{base} = ~0.000295$ (base throughput coefficient per shot)
+- $\alpha_q = ~1.37 \times 10^{-5}$ (per-qubit throughput scaling per shot)
+- $B$ = number of circuits in a batch
+
+Since $\eta(B) \approx 1$ in the observed batch range, the formula simplifies to approximately:
+
+$$T \approx B \times shots \times (0.000295 + 1.37 \times 10^{-5} \times qubits)$$
+
+This means each additional qubit adds roughly $1.37 \times 10^{-5}$ seconds per shot per circuit. Unlike VTT Q50, **qubit count has a measurable effect** on runtime for Aalto Q20. Circuit depth has negligible impact and is not included in the model.
+
+The model was selected by comparing a plain analytical model (R² = 0.93), a degree-3 polynomial (cross-validated R² = 0.83, overfitting), and the qubit-scaled analytical model (cross-validated R² = 0.98). The qubit-scaled model gives the best generalisation with only 5 parameters.
+
+![image](./actual_vs_predicted-aalto-q20.png)
+
 ## Limitations of the estimation
 
 The model does not work well for circuits with a high depth (`>1000`) count, however, it is unrealistic to run such circuits on these devices.
@@ -49,7 +73,11 @@ Both VTT Q50 and Helmi have a constant initialization time associated with any q
 
 - **Why does VTT Q50's model not include circuit depth or qubit count?**
 
-The circuit depth and number of qubits has minimal impact on QPU execution time. The runtime is largely dominated by the number of circuit executions (shots × batches) and qubit count. Removing depth from the VTT Q50 model simplifies the estimation model.
+The circuit depth and number of qubits has minimal impact on QPU execution time for VTT Q50. The runtime is largely dominated by the number of circuit executions (shots × batches). Removing these parameters from the VTT Q50 model simplifies the estimation without meaningfully affecting accuracy.
+
+- **Why does Aalto Q20 include qubit count but not VTT Q50?**
+
+Data from Aalto Q20 shows a measurable increase in per-shot execution time as qubit count grows. Each additional qubit adds approximately 1.37 × 10⁻⁵ seconds per shot per circuit, which becomes significant at high shot counts. VTT Q50 does not exhibit this behaviour to the same degree, so its model omits the qubit term.
 
 - **Is the initialization time needed every time a parameter is updated in the quantum circuit?**
 
