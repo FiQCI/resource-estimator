@@ -2,6 +2,18 @@
 Changelog
 =========
 
+Version 0.5.0
+==========================
+
+* Add Aalto Q20 (``aalto-q20``) as a supported quantum computer.
+  * Add device card and image to the device selector UI.
+  * Disable depth input for Aalto Q20 (depth has no measurable effect on QPU time).
+* Introduce qubit-scaled analytical model (``analytical-qubit``) for fitting devices where per-shot cost depends on qubit count.
+  * Formula: ``T = T_init + η(B) × B × shots × (α_base + α_q × qubits)``
+  * Cross-validated R² = 0.98 for Aalto Q20, versus 0.83 for the polynomial alternative.
+* Fix incorrect ``use_log_transform`` property name in JavaScript model (was ``logTransform``).
+* Add Aalto Q20 section to documentation including model formula, parameters, and actual-vs-predicted plot.
+
 Version 0.4.0
 ==========================
 
