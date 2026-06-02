@@ -2,6 +2,11 @@
 Changelog
 =========
 
+Version 0.5.2
+==========================
+
+* Dynamically convert QPU seconds to hours or minutes in the UI for better readability.
+* Separate total QPU hours by device in the basket summary.
 
 Version 0.5.1
 ==========================
